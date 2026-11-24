@@ -20,8 +20,9 @@ services:
           name: invoicing-db
           property: connectionString
       - key: NEXTAUTH_URL
-        # TODO: replace with the service's public URL after creation.
-        value: https://invoicing-platform.onrender.com
+        # The plain name was taken, so Render assigned this URL
+        # (first deploy 2026-11-24). Keep in sync with the dashboard.
+        value: https://invoicing-platform-ap6p.onrender.com
       - key: NEXTAUTH_SECRET
         generateValue: true
       - key: EMAIL_PROVIDER
@@ -39,8 +40,9 @@ services:
 
 databases:
   - name: invoicing-db
-    # Entry-level current plan (256 MB, ~$6/mo + $0.30/GB storage).
-    # The legacy `starter` plan is retired — Render rejects new
-    # databases on it (hit during the first deploy, 2026-11-24).
-    plan: basic-256mb
+    # Free plan ($0) — chosen 2026-11-24 to cut cost. NOTE: Render
+    # free Postgres expires after 30 days and the database is deleted,
+    # so this must be upgraded to a paid plan before then or all data
+    # is lost. The legacy `starter` plan is retired.
+    plan: free
     postgresMajorVersion: 16
