@@ -25,6 +25,12 @@ services:
         value: https://invoicing-platform-ap6p.onrender.com
       - key: NEXTAUTH_SECRET
         generateValue: true
+      # Auth.js v5 refuses every sign-in on a non-localhost host unless
+      # the host is trusted. Without this, register/login fail with
+      # "UntrustedHost" and the "server configuration" error page
+      # (hit on the first live registration, 2026-11-24).
+      - key: AUTH_TRUST_HOST
+        value: "true"
       - key: EMAIL_PROVIDER
         value: log
       # Uploads live on the persistent disk (see below). Without the
