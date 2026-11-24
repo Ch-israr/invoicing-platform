@@ -13,10 +13,10 @@ export default defineConfig({
     setupFiles: ["./tests/setup.ts"],
     globalSetup: ["./tests/global-setup.ts"],
     testTimeout: 60_000,
-    poolOptions: {
-      // Integration tests share one test database; run serially to
-      // avoid interleaving writes.
-      threads: { singleThread: true },
-    },
+    // Vitest 4 removed poolOptions (and tinypool): singleThread is now
+    // maxWorkers: 1 + isolate: false. Integration tests share one test
+    // database; run serially to avoid interleaving writes.
+    maxWorkers: 1,
+    isolate: false,
   },
 });
