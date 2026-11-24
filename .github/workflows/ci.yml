@@ -1,0 +1,52 @@
+name: CI
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    services:
+      postgres:
+        image: postgres:16
+        env:
+          POSTGRES_USER: invoicing
+          POSTGRES_PASSWORD: invoicing_dev_local
+          POSTGRES_DB: invoicing_test
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd "pg_isready -U invoicing -d invoicing_test"
+          --health-interval 5s --health-timeout 5s --health-retries 10
+    env:
+      DATABASE_URL: postgresql://invoicing:invoicing_dev_local@localhost:5432/invoicing_test?schema=public
+      TEST_DATABASE_URL: postgresql://invoicing:invoicing_dev_local@localhost:5432/invoicing_test?schema=public
+      NEXTAUTH_URL: http://localhost:3000
+      NEXTAUTH_SECRET: ci-test-secret-do-not-use-in-production
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 20
+          cache: npm
+      - run: npm ci
+      - run: npm run db:generate
+      - run: npm run typecheck
+      - run: npm run lint
+      # Fails the build on any high/critical vulnerability. `npm audit`
+      # cannot run in the dev VM (the egress proxy blocks the registry
+      # audit endpoint), so CI is where this is enforced.
+      - run: npm audit --audit-level=high
+      - run: npm test
+      - run: npm run build
+
+  # Validates the production Dockerfile. The dev VM has no Docker
+  # daemon, so this job is the only place the image build is proven.
+  # It does not run the container or deploy anything.
+  docker:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - run: docker build -t invoicing-platform:ci .
