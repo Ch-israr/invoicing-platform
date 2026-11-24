@@ -1,0 +1,703 @@
+// Invoicing Platform — Prisma schema (Phase 1)
+// Money: DECIMAL(19,4) everywhere. Quantities: DECIMAL(12,3).
+// Every business-owned row carries businessId. Overdue is DERIVED at read
+// time (dueDate < today AND balance > 0), never stored as a status.
+// Issued financial documents are immutable: corrections go through credit
+// notes, never UPDATEs of issued rows.
+
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+enum Role {
+  OWNER
+  ADMIN
+  MEMBER
+  VIEWER
+}
+
+enum CustomerType {
+  INDIVIDUAL
+  COMPANY
+}
+
+enum CustomerStatus {
+  ACTIVE
+  INACTIVE
+}
+
+enum DiscountType {
+  NONE
+  PERCENT
+  FIXED
+}
+
+enum TaxCategory {
+  STANDARD
+  ZERO_RATED
+  EXEMPT
+  OUT_OF_SCOPE
+}
+
+enum InvoiceStatus {
+  DRAFT
+  ISSUED
+  SENT
+  PARTIALLY_PAID
+  PAID
+  CANCELLED
+}
+
+enum PaymentMethod {
+  CASH
+  BANK_TRANSFER
+  CARD
+  OTHER
+}
+
+enum QuotationStatus {
+  DRAFT
+  SENT
+  ACCEPTED
+  REJECTED
+  EXPIRED
+}
+
+enum RecurringFrequency {
+  WEEKLY
+  MONTHLY
+  QUARTERLY
+  YEARLY
+  CUSTOM
+}
+
+enum RecurringStatus {
+  ACTIVE
+  PAUSED
+  CANCELLED
+}
+
+enum CreditNoteStatus {
+  ISSUED
+  CANCELLED
+}
+
+enum EmailStatus {
+  QUEUED
+  SENT
+  FAILED
+}
+
+// ---------------------------------------------------------------------------
+// Auth.js (NextAuth v5) models — required by @auth/prisma-adapter.
+// ---------------------------------------------------------------------------
+
+model User {
+  id            String    @id @default(cuid())
+  name          String?
+  email         String    @unique
+  emailVerified DateTime?
+  image         String?
+  passwordHash  String?
+  createdAt     DateTime  @default(now())
+  updatedAt     DateTime  @updatedAt
+
+  accounts       Account[]
+  sessions       Session[]
+  memberships    BusinessMembership[]
+  paymentsMade   Payment[]            @relation("PaymentCreatedBy")
+  activityLogs   ActivityLog[]
+}
+
+model Account {
+  id                String  @id @default(cuid())
+  userId            String
+  type              String
+  provider          String
+  providerAccountId String
+  refresh_token     String? @db.Text
+  access_token      String? @db.Text
+  expires_at        Int?
+  token_type        String?
+  scope             String?
+  id_token          String? @db.Text
+  session_state     String?
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@unique([provider, providerAccountId])
+}
+
+model Session {
+  id           String   @id @default(cuid())
+  sessionToken String   @unique
+  userId       String
+  expires      DateTime
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+}
+
+model VerificationToken {
+  identifier String
+  token      String   @unique
+  expires    DateTime
+
+  @@unique([identifier, token])
+}
+
+// ---------------------------------------------------------------------------
+// Tenancy: Business + membership + settings
+// ---------------------------------------------------------------------------
+
+model Business {
+  id                  String   @id @default(cuid())
+  name                String
+  slug                String   @unique
+  country             String   @default("AE")
+  currency            String   @default("AED")
+  logoUrl             String?
+  address             String?  @db.Text
+  phone               String?
+  email               String?
+  website             String?
+  trn                 String?
+  bankName            String?
+  accountName         String?
+  iban                String?
+  swift               String?
+  paymentInstructions String?  @db.Text
+  invoicePrefix       String   @default("INV")
+  nextInvoiceNumber   Int      @default(1)
+  nextQuotationNumber Int      @default(1)
+  nextCreditNoteNumber Int     @default(1)
+  defaultTerms        String?  @db.Text
+  defaultFooter       String?  @db.Text
+  signatureUrl        String?
+  defaultVatRateId    String?
+  createdAt           DateTime @default(now())
+  updatedAt           DateTime @updatedAt
+
+  defaultVatRate TaxRate?              @relation("BusinessDefaultVatRate", fields: [defaultVatRateId], references: [id], onDelete: SetNull)
+  members        BusinessMembership[]
+  settings       BusinessSettings?
+  customers      Customer[]
+  categories     ProductCategory[]
+  products       Product[]
+  taxRates       TaxRate[]
+  invoices       Invoice[]
+  quotations     Quotation[]
+  expenses       Expense[]
+  expenseCategories ExpenseCategory[]
+  recurring      RecurringInvoice[]
+  creditNotes    CreditNote[]
+  payments       Payment[]
+  emailLogs      EmailLog[]
+  activityLogs   ActivityLog[]
+
+  @@index([createdAt])
+}
+
+model BusinessMembership {
+  id         String   @id @default(cuid())
+  userId     String
+  businessId String
+  role       Role     @default(MEMBER)
+  createdAt  DateTime @default(now())
+  updatedAt  DateTime @updatedAt
+
+  user     User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  business Business @relation(fields: [businessId], references: [id], onDelete: Cascade)
+
+  @@unique([userId, businessId])
+  @@index([businessId])
+}
+
+model BusinessSettings {
+  id               String   @id @default(cuid())
+  businessId       String   @unique
+  locale           String   @default("en")
+  timezone         String   @default("Asia/Dubai")
+  dateFormat       String   @default("DD/MM/YYYY")
+  pdfTemplate      String   @default("classic")
+  primaryColor     String   @default("#0f172a")
+  emailFromName    String?
+  emailFromAddress String?
+  emailProvider    String   @default("log")
+  createdAt        DateTime @default(now())
+  updatedAt        DateTime @updatedAt
+
+  business Business @relation(fields: [businessId], references: [id], onDelete: Cascade)
+}
+
+// ---------------------------------------------------------------------------
+// Customers & products
+// ---------------------------------------------------------------------------
+
+model Customer {
+  id              String         @id @default(cuid())
+  businessId      String
+  type            CustomerType   @default(COMPANY)
+  name            String
+  companyName     String?
+  email           String?
+  phone           String?
+  billingAddress  String?        @db.Text
+  shippingAddress String?        @db.Text
+  country         String         @default("AE")
+  trn             String?
+  notes           String?        @db.Text
+  status          CustomerStatus @default(ACTIVE)
+  createdAt       DateTime       @default(now())
+  updatedAt       DateTime       @updatedAt
+
+  business     Business              @relation(fields: [businessId], references: [id], onDelete: Restrict)
+  invoices     Invoice[]
+  quotations   Quotation[]
+  portalTokens CustomerPortalToken[]
+  recurring    RecurringInvoice[]
+
+  @@index([businessId, createdAt])
+  @@index([businessId, name])
+}
+
+model ProductCategory {
+  id         String   @id @default(cuid())
+  businessId String
+  name       String
+  createdAt  DateTime @default(now())
+  updatedAt  DateTime @updatedAt
+
+  business Business  @relation(fields: [businessId], references: [id], onDelete: Cascade)
+  products Product[]
+
+  @@unique([businessId, name])
+}
+
+model Product {
+  id           String      @id @default(cuid())
+  businessId   String
+  categoryId   String?
+  sku          String?
+  name         String
+  description  String?     @db.Text
+  unit         String      @default("pcs")
+  price        Decimal     @db.Decimal(19, 4)
+  taxRateId    String?
+  taxCategory  TaxCategory @default(STANDARD)
+  isActive     Boolean     @default(true)
+  createdAt    DateTime    @default(now())
+  updatedAt    DateTime    @updatedAt
+
+  business Business         @relation(fields: [businessId], references: [id], onDelete: Restrict)
+  category ProductCategory?  @relation(fields: [categoryId], references: [id], onDelete: SetNull)
+  taxRate  TaxRate?          @relation(fields: [taxRateId], references: [id], onDelete: SetNull)
+
+  @@index([businessId, createdAt])
+  @@index([businessId, name])
+  @@unique([businessId, sku])
+}
+
+model TaxRate {
+  id         String   @id @default(cuid())
+  businessId String
+  code       String
+  name       String
+  rate       Decimal  @db.Decimal(19, 4)
+  country    String   @default("AE")
+  validFrom  DateTime @default(now())
+  validTo    DateTime?
+  isDefault  Boolean  @default(false)
+  createdAt  DateTime @default(now())
+  updatedAt  DateTime @updatedAt
+
+  business            Business   @relation(fields: [businessId], references: [id], onDelete: Cascade)
+  defaultForBusinesses Business[] @relation("BusinessDefaultVatRate")
+  products            Product[]
+  invoiceItems        InvoiceItem[]
+  quotationItems      QuotationItem[]
+  creditNoteItems     CreditNoteItem[]
+
+  @@unique([businessId, code])
+  @@index([businessId])
+}
+
+// ---------------------------------------------------------------------------
+// Invoices
+// ---------------------------------------------------------------------------
+
+model Invoice {
+  id                  String        @id @default(cuid())
+  businessId          String
+  customerId          String
+  recurringInvoiceId  String?
+  number              String
+  status              InvoiceStatus @default(DRAFT)
+  currency            String        @default("AED")
+  issueDate           DateTime      @default(now())
+  dueDate             DateTime
+  supplyDate          DateTime?
+  subtotal            Decimal       @default(0) @db.Decimal(19, 4)
+  discountTotal       Decimal       @default(0) @db.Decimal(19, 4)
+  taxableAmount       Decimal       @default(0) @db.Decimal(19, 4)
+  vatAmount           Decimal       @default(0) @db.Decimal(19, 4)
+  grandTotal          Decimal       @default(0) @db.Decimal(19, 4)
+  amountPaid          Decimal       @default(0) @db.Decimal(19, 4)
+  balance             Decimal       @default(0) @db.Decimal(19, 4)
+  notes               String?       @db.Text
+  terms               String?       @db.Text
+  template            String        @default("classic")
+  locale              String        @default("en")
+  createdAt           DateTime      @default(now())
+  updatedAt           DateTime      @updatedAt
+
+  business         Business          @relation(fields: [businessId], references: [id], onDelete: Restrict)
+  customer         Customer          @relation(fields: [customerId], references: [id], onDelete: Restrict)
+  recurringInvoice RecurringInvoice?  @relation("RecurringGeneratedInvoices", fields: [recurringInvoiceId], references: [id], onDelete: SetNull)
+  items            InvoiceItem[]
+  snapshot         InvoiceSnapshot?
+  documents        InvoiceDocument[]
+  payments         Payment[]
+  allocations      PaymentAllocation[]
+  creditNotes      CreditNote[]
+  convertedFrom    Quotation?        @relation("QuotationConvertedInvoice")
+
+  @@unique([businessId, number])
+  @@index([businessId, customerId, createdAt])
+  @@index([businessId, status, dueDate])
+}
+
+model InvoiceItem {
+  id            String       @id @default(cuid())
+  invoiceId     String
+  productId     String?
+  description   String       @db.Text
+  sku           String?
+  quantity      Decimal      @db.Decimal(12, 3)
+  unit          String       @default("pcs")
+  unitPrice     Decimal      @db.Decimal(19, 4)
+  discountType  DiscountType @default(NONE)
+  discountValue Decimal      @default(0) @db.Decimal(19, 4)
+  taxInclusive  Boolean      @default(false)
+  taxRateId     String?
+  taxRate       Decimal      @default(0) @db.Decimal(19, 4)
+  taxCategory   TaxCategory  @default(STANDARD)
+  lineTotal     Decimal      @default(0) @db.Decimal(19, 4)
+  sortOrder     Int          @default(0)
+
+  invoice      Invoice  @relation(fields: [invoiceId], references: [id], onDelete: Cascade)
+  taxRateRef   TaxRate? @relation(fields: [taxRateId], references: [id], onDelete: SetNull)
+  creditNoteItems CreditNoteItem[]
+
+  @@index([invoiceId, sortOrder])
+}
+
+// Frozen at issue time. The PDF is rendered from this payload, never from
+// live customer/product rows.
+model InvoiceSnapshot {
+  id              String   @id @default(cuid())
+  invoiceId       String   @unique
+  payload         Json
+  templateVersion String   @default("1")
+  createdAt       DateTime @default(now())
+
+  invoice Invoice @relation(fields: [invoiceId], references: [id], onDelete: Cascade)
+}
+
+model InvoiceDocument {
+  id          String   @id @default(cuid())
+  invoiceId   String
+  type        String   @default("PDF")
+  storageKey  String
+  fileSize    Int?
+  checksum    String?
+  createdAt   DateTime @default(now())
+
+  invoice Invoice @relation(fields: [invoiceId], references: [id], onDelete: Cascade)
+
+  @@index([invoiceId])
+}
+
+// ---------------------------------------------------------------------------
+// Payments, allocations, refunds
+// ---------------------------------------------------------------------------
+
+model Payment {
+  id            String        @id @default(cuid())
+  businessId    String
+  invoiceId     String
+  date          DateTime      @default(now())
+  amount        Decimal       @db.Decimal(19, 4)
+  currency      String        @default("AED")
+  method        PaymentMethod @default(BANK_TRANSFER)
+  reference     String?
+  notes         String?       @db.Text
+  attachmentUrl String?
+  createdById   String?
+  createdAt     DateTime      @default(now())
+  updatedAt     DateTime      @updatedAt
+
+  business    Business            @relation(fields: [businessId], references: [id], onDelete: Restrict)
+  invoice     Invoice             @relation(fields: [invoiceId], references: [id], onDelete: Restrict)
+  createdBy   User?               @relation("PaymentCreatedBy", fields: [createdById], references: [id], onDelete: SetNull)
+  allocations PaymentAllocation[]
+  refunds     Refund[]
+
+  @@index([businessId, invoiceId, date])
+}
+
+model PaymentAllocation {
+  id        String   @id @default(cuid())
+  paymentId String
+  invoiceId String
+  amount    Decimal  @db.Decimal(19, 4)
+  createdAt DateTime @default(now())
+
+  payment Payment @relation(fields: [paymentId], references: [id], onDelete: Cascade)
+  invoice Invoice @relation(fields: [invoiceId], references: [id], onDelete: Restrict)
+
+  @@index([paymentId])
+  @@index([invoiceId])
+}
+
+model Refund {
+  id        String   @id @default(cuid())
+  paymentId String
+  amount    Decimal  @db.Decimal(19, 4)
+  reason    String?  @db.Text
+  date      DateTime @default(now())
+  createdAt DateTime @default(now())
+
+  payment Payment @relation(fields: [paymentId], references: [id], onDelete: Restrict)
+}
+
+// ---------------------------------------------------------------------------
+// Quotations
+// ---------------------------------------------------------------------------
+
+model Quotation {
+  id                String          @id @default(cuid())
+  businessId        String
+  customerId        String
+  number            String
+  status            QuotationStatus @default(DRAFT)
+  currency          String          @default("AED")
+  issueDate         DateTime        @default(now())
+  expiryDate        DateTime
+  subtotal          Decimal         @default(0) @db.Decimal(19, 4)
+  discountTotal     Decimal         @default(0) @db.Decimal(19, 4)
+  taxableAmount     Decimal         @default(0) @db.Decimal(19, 4)
+  vatAmount         Decimal         @default(0) @db.Decimal(19, 4)
+  grandTotal        Decimal         @default(0) @db.Decimal(19, 4)
+  notes             String?         @db.Text
+  terms             String?         @db.Text
+  convertedInvoiceId String?        @unique
+  createdAt         DateTime        @default(now())
+  updatedAt         DateTime        @updatedAt
+
+  business         Business        @relation(fields: [businessId], references: [id], onDelete: Restrict)
+  customer         Customer        @relation(fields: [customerId], references: [id], onDelete: Restrict)
+  items            QuotationItem[]
+  convertedInvoice Invoice?        @relation("QuotationConvertedInvoice", fields: [convertedInvoiceId], references: [id], onDelete: SetNull)
+
+  @@unique([businessId, number])
+  @@index([businessId, customerId, createdAt])
+}
+
+model QuotationItem {
+  id            String       @id @default(cuid())
+  quotationId   String
+  productId     String?
+  description   String       @db.Text
+  sku           String?
+  quantity      Decimal      @db.Decimal(12, 3)
+  unit          String       @default("pcs")
+  unitPrice     Decimal      @db.Decimal(19, 4)
+  discountType  DiscountType @default(NONE)
+  discountValue Decimal      @default(0) @db.Decimal(19, 4)
+  taxRateId     String?
+  taxRate       Decimal      @default(0) @db.Decimal(19, 4)
+  taxCategory   TaxCategory  @default(STANDARD)
+  taxInclusive  Boolean      @default(false)
+  lineTotal     Decimal      @default(0) @db.Decimal(19, 4)
+  sortOrder     Int          @default(0)
+
+  quotation  Quotation @relation(fields: [quotationId], references: [id], onDelete: Cascade)
+  taxRateRef TaxRate?  @relation(fields: [taxRateId], references: [id], onDelete: SetNull)
+
+  @@index([quotationId, sortOrder])
+}
+
+// ---------------------------------------------------------------------------
+// Expenses
+// ---------------------------------------------------------------------------
+
+model ExpenseCategory {
+  id         String   @id @default(cuid())
+  businessId String
+  name       String
+  createdAt  DateTime @default(now())
+  updatedAt  DateTime @updatedAt
+
+  business Business  @relation(fields: [businessId], references: [id], onDelete: Cascade)
+  expenses Expense[]
+
+  @@unique([businessId, name])
+}
+
+model Expense {
+  id          String        @id @default(cuid())
+  businessId  String
+  categoryId  String?
+  vendor      String?
+  title       String
+  date        DateTime      @default(now())
+  amount      Decimal       @db.Decimal(19, 4)
+  vatAmount   Decimal       @default(0) @db.Decimal(19, 4)
+  method      PaymentMethod @default(BANK_TRANSFER)
+  description String?       @db.Text
+  receiptUrl  String?
+  createdAt   DateTime      @default(now())
+  updatedAt   DateTime      @updatedAt
+
+  business Business         @relation(fields: [businessId], references: [id], onDelete: Restrict)
+  category ExpenseCategory?  @relation(fields: [categoryId], references: [id], onDelete: SetNull)
+
+  @@index([businessId, date])
+}
+
+// ---------------------------------------------------------------------------
+// Recurring invoices
+// ---------------------------------------------------------------------------
+
+model RecurringInvoice {
+  id            String             @id @default(cuid())
+  businessId    String
+  customerId    String
+  frequency     RecurringFrequency
+  intervalDays  Int?
+  startDate     DateTime
+  endDate       DateTime?
+  nextRunAt     DateTime
+  lastRunAt     DateTime?
+  lastRunKey    String?            @unique
+  status        RecurringStatus    @default(ACTIVE)
+  autoSend      Boolean            @default(false)
+  templateItems Json
+  createdAt     DateTime           @default(now())
+  updatedAt     DateTime           @updatedAt
+
+  business  Business   @relation(fields: [businessId], references: [id], onDelete: Restrict)
+  customer  Customer   @relation(fields: [customerId], references: [id], onDelete: Restrict)
+  generated Invoice[]  @relation("RecurringGeneratedInvoices")
+
+  @@index([businessId, nextRunAt])
+}
+
+// ---------------------------------------------------------------------------
+// Credit notes
+// ---------------------------------------------------------------------------
+
+model CreditNote {
+  id          String           @id @default(cuid())
+  businessId  String
+  invoiceId   String
+  number      String
+  reason      String?          @db.Text
+  subtotal    Decimal          @default(0) @db.Decimal(19, 4)
+  vatAmount   Decimal          @default(0) @db.Decimal(19, 4)
+  grandTotal  Decimal          @default(0) @db.Decimal(19, 4)
+  status      CreditNoteStatus @default(ISSUED)
+  createdAt   DateTime         @default(now())
+  updatedAt   DateTime         @updatedAt
+
+  business Business         @relation(fields: [businessId], references: [id], onDelete: Restrict)
+  invoice  Invoice          @relation(fields: [invoiceId], references: [id], onDelete: Restrict)
+  items    CreditNoteItem[]
+
+  @@unique([businessId, number])
+  @@index([businessId, invoiceId])
+}
+
+model CreditNoteItem {
+  id            String      @id @default(cuid())
+  creditNoteId  String
+  invoiceItemId String?
+  description   String      @db.Text
+  quantity      Decimal     @db.Decimal(12, 3)
+  unitPrice     Decimal     @db.Decimal(19, 4)
+  taxRateId     String?
+  taxRate       Decimal     @default(0) @db.Decimal(19, 4)
+  taxCategory   TaxCategory @default(STANDARD)
+  lineTotal     Decimal     @default(0) @db.Decimal(19, 4)
+
+  creditNote  CreditNote  @relation(fields: [creditNoteId], references: [id], onDelete: Cascade)
+  invoiceItem InvoiceItem? @relation(fields: [invoiceItemId], references: [id], onDelete: SetNull)
+  taxRateRef  TaxRate?     @relation(fields: [taxRateId], references: [id], onDelete: SetNull)
+}
+
+// ---------------------------------------------------------------------------
+// Email, activity, portal
+// ---------------------------------------------------------------------------
+
+model EmailLog {
+  id          String      @id @default(cuid())
+  businessId  String
+  relatedType String
+  relatedId   String
+  to          String
+  subject     String
+  provider    String      @default("log")
+  status      EmailStatus @default(QUEUED)
+  attempts    Int         @default(0)
+  error       String?     @db.Text
+  sentAt      DateTime?
+  createdAt   DateTime    @default(now())
+  updatedAt   DateTime    @updatedAt
+
+  business Business @relation(fields: [businessId], references: [id], onDelete: Cascade)
+
+  @@index([businessId, createdAt])
+  @@index([relatedType, relatedId])
+}
+
+// Append-only audit trail. No delete/update API exists for this table.
+model ActivityLog {
+  id         String   @id @default(cuid())
+  businessId String
+  userId     String?
+  action     String
+  entityType String
+  entityId   String?
+  metadata   Json?
+  ipAddress  String?
+  createdAt  DateTime @default(now())
+
+  business Business @relation(fields: [businessId], references: [id], onDelete: Cascade)
+  user     User?    @relation(fields: [userId], references: [id], onDelete: SetNull)
+
+  @@index([businessId, createdAt])
+  @@index([entityType, entityId])
+}
+
+// Portal tokens are stored as SHA-256 hashes, never plaintext.
+model CustomerPortalToken {
+  id          String    @id @default(cuid())
+  customerId  String
+  invoiceId   String?
+  quotationId String?
+  tokenHash   String    @unique
+  scope       String
+  expiresAt   DateTime
+  revokedAt   DateTime?
+  createdAt   DateTime  @default(now())
+
+  customer Customer @relation(fields: [customerId], references: [id], onDelete: Cascade)
+
+  @@index([customerId])
+  @@index([expiresAt])
+}
