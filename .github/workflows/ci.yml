@@ -51,6 +51,10 @@ jobs:
         run: |
           npx -y playwright@1.65.1 install chromium --with-deps
           echo "CHROMIUM_EXECUTABLE_PATH=$(find ~/.cache/ms-playwright -name chrome -path '*chrome-linux64/chrome' | head -n 1)" >> $GITHUB_ENV
+      # The phase4 PDF tests verify generated PDFs with poppler-utils
+      # (pdftotext/pdfinfo), which ubuntu-latest does not ship.
+      - name: Install poppler-utils for PDF tests
+        run: sudo apt-get update -qq && sudo apt-get install -y -qq poppler-utils
       - run: npm test
       - run: npm run build
 
