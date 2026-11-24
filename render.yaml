@@ -39,5 +39,8 @@ services:
 
 databases:
   - name: invoicing-db
-    plan: starter
+    # Entry-level current plan (256 MB, ~$6/mo + $0.30/GB storage).
+    # The legacy `starter` plan is retired — Render rejects new
+    # databases on it (hit during the first deploy, 2026-11-24).
+    plan: basic-256mb
     postgresMajorVersion: 16
