@@ -39,6 +39,18 @@ jobs:
       # cannot run in the dev VM (the egress proxy blocks the registry
       # audit endpoint), so CI is where this is enforced.
       - run: npm audit --audit-level=high
+      # The PDF integration tests render real PDFs with Playwright, so
+      # they need a Chromium binary. ubuntu-latest does not ship one,
+      # and src/server/pdf/generate.ts only looks at
+      # CHROMIUM_EXECUTABLE_PATH or the Playwright cache
+      # (~/.cache/ms-playwright/chromium-*/...). Install the Chromium
+      # matching the app's playwright-core (1.65.1) and point the env
+      # var at wherever it landed, so the lookup never depends on the
+      # exact cache revision.
+      - name: Install Chromium for PDF tests
+        run: |
+          npx -y playwright@1.65.1 install chromium --with-deps
+          echo "CHROMIUM_EXECUTABLE_PATH=$(find ~/.cache/ms-playwright -name chrome -path '*chrome-linux64/chrome' | head -n 1)" >> $GITHUB_ENV
       - run: npm test
       - run: npm run build
 
