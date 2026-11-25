@@ -15,7 +15,10 @@ import {
   updateQuotation,
 } from "@/server/services/quotation.service";
 
-export type FormState = { error?: string; ok?: boolean } | null;
+// lineIndex: index of the offending line item (into the items array
+// as submitted), when the failure is about one line — the builder
+// highlights that line.
+export type FormState = { error?: string; ok?: boolean; lineIndex?: number } | null;
 
 async function requireUserId(): Promise<string> {
   const session = await auth();
@@ -58,7 +61,7 @@ export async function createQuotationAction(
   if (input.items === "__invalid__") return { error: "Line items could not be read" };
   try {
     const result = await createQuotation(userId, input);
-    if (!result.ok) return { error: result.error };
+    if (!result.ok) return { error: result.error, lineIndex: result.lineIndex };
     revalidatePath("/quotations");
     redirect(`/quotations/${result.data.id}`);
   } catch (err) {
@@ -78,7 +81,7 @@ export async function updateQuotationAction(
   if (input.items === "__invalid__") return { error: "Line items could not be read" };
   try {
     const result = await updateQuotation(userId, id, input);
-    if (!result.ok) return { error: result.error };
+    if (!result.ok) return { error: result.error, lineIndex: result.lineIndex };
   } catch (err) {
     if (err instanceof TenantError) return { error: err.message };
     throw err;

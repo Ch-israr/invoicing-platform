@@ -23,7 +23,12 @@ import {
   quotationSchema,
   type QuotationInput,
 } from "@/lib/validation/quotation";
-import { invoiceSchema, type InvoiceInput } from "@/lib/validation/invoice";
+import {
+  firstValidationError,
+  invoiceSchema,
+  stripEmptyLineItems,
+  type InvoiceInput,
+} from "@/lib/validation/invoice";
 
 /**
  * Quotations — an invoice that hasn't happened yet.
@@ -138,9 +143,9 @@ export async function createQuotation(
   userId: string,
   rawInput: unknown,
 ): Promise<ServiceResult<{ id: string }>> {
-  const parsed = quotationSchema.safeParse(rawInput);
+  const parsed = quotationSchema.safeParse(stripEmptyLineItems(rawInput));
   if (!parsed.success) {
-    return { ok: false, error: parsed.error.issues[0]?.message ?? "Invalid input" };
+    return { ok: false, ...firstValidationError(parsed.error) };
   }
   const business = await getDefaultBusinessForUser(userId);
   if (!business) return { ok: false, error: "No business found" };
@@ -212,9 +217,9 @@ export async function updateQuotation(
   quotationId: string,
   rawInput: unknown,
 ): Promise<ServiceResult> {
-  const parsed = quotationSchema.safeParse(rawInput);
+  const parsed = quotationSchema.safeParse(stripEmptyLineItems(rawInput));
   if (!parsed.success) {
-    return { ok: false, error: parsed.error.issues[0]?.message ?? "Invalid input" };
+    return { ok: false, ...firstValidationError(parsed.error) };
   }
   const { business, quotation } = await getQuotationForUser(userId, quotationId);
   await requireCanWrite(userId, business.id);

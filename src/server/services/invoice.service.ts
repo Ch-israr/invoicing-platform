@@ -21,7 +21,9 @@ import {
 } from "@/lib/money";
 import { draftNumber, formatInvoiceNumber, isDraftNumber } from "@/lib/numbering";
 import {
+  firstValidationError,
   invoiceSchema,
+  stripEmptyLineItems,
   taxCategoryForRateCode,
   type InvoiceInput,
   type InvoiceItemInput,
@@ -29,7 +31,10 @@ import {
 
 export type ServiceResult<T = void> =
   | ({ ok: true } & (T extends void ? object : { data: T }))
-  | { ok: false; error: string };
+  // lineIndex: index of the offending line item (into the items array
+  // as submitted), when the failure is about one line — the form uses
+  // it to highlight that line.
+  | { ok: false; error: string; lineIndex?: number };
 
 /** Statuses that can become overdue (derived, never stored). */
 const UNPAID_STATUSES: InvoiceStatus[] = ["ISSUED", "SENT", "PARTIALLY_PAID"];
@@ -579,9 +584,9 @@ export async function createInvoice(
   userId: string,
   rawInput: unknown,
 ): Promise<ServiceResult<{ id: string }>> {
-  const parsed = invoiceSchema.safeParse(rawInput);
+  const parsed = invoiceSchema.safeParse(stripEmptyLineItems(rawInput));
   if (!parsed.success) {
-    return { ok: false, error: parsed.error.issues[0]?.message ?? "Invalid input" };
+    return { ok: false, ...firstValidationError(parsed.error) };
   }
   const business = await getDefaultBusinessForUser(userId);
   if (!business) return { ok: false, error: "No business found" };
@@ -619,9 +624,9 @@ export async function updateInvoice(
   invoiceId: string,
   rawInput: unknown,
 ): Promise<ServiceResult> {
-  const parsed = invoiceSchema.safeParse(rawInput);
+  const parsed = invoiceSchema.safeParse(stripEmptyLineItems(rawInput));
   if (!parsed.success) {
-    return { ok: false, error: parsed.error.issues[0]?.message ?? "Invalid input" };
+    return { ok: false, ...firstValidationError(parsed.error) };
   }
   const { business, invoice } = await getInvoiceForUser(userId, invoiceId);
   await requireCanWrite(userId, business.id);

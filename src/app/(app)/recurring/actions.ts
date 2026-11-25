@@ -50,7 +50,7 @@ export async function createRecurringAction(
   if (items === "__invalid__") return { error: "Line items could not be read" };
   try {
     const result = await createRecurring(userId, { ...formObject(formData), items });
-    if (!result.ok) return { error: result.error };
+    if (!result.ok) return { error: result.error, lineIndex: result.lineIndex };
     revalidatePath("/recurring");
     redirect(`/recurring/${result.data.id}`);
   } catch (err) {

@@ -11,6 +11,7 @@ import {
   blankLine,
   computeLinePreview,
   defaultTaxRateId,
+  isEmptyLine,
   LineItemsEditor,
   LineTotalsBox,
   type BuilderProduct,
@@ -78,8 +79,11 @@ export function RecurringForm({
     [lines, taxRates],
   );
 
+  // Fully-empty lines are dropped, like in the invoice builder, so a
+  // blank starting line can never block a save (the server strips
+  // them again defensively, with the same rule).
   const itemsJson = JSON.stringify(
-    lines.map((l) => ({
+    lines.filter((l) => !isEmptyLine(l)).map((l) => ({
       productId: l.productId || undefined,
       description: l.description,
       sku: l.sku || undefined,

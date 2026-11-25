@@ -1,6 +1,6 @@
 "use client";
 
-import { useActionState, useMemo, useState } from "react";
+import { useActionState, useEffect, useMemo, useState } from "react";
 import Link from "next/link";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
@@ -16,6 +16,7 @@ import {
   blankLine,
   computeLinePreview,
   defaultTaxRateId,
+  isEmptyLine,
   LineItemsEditor,
   LineTotalsBox,
   type BuilderProduct,
@@ -26,7 +27,10 @@ import {
 // Re-exported for the invoice/quotation edit pages.
 export type { BuilderProduct, BuilderTaxRate, LineState } from "./line-items-editor";
 
-export type FormState = { error?: string; ok?: boolean } | null;
+// lineIndex: index of the offending line item (into the items array
+// as submitted), when the failure is about one line — the builder
+// highlights that line.
+export type FormState = { error?: string; ok?: boolean; lineIndex?: number } | null;
 
 export type BuilderCustomer = {
   id: string;
@@ -231,8 +235,28 @@ export function InvoiceBuilder({
     };
   }, [lines, customerId, customers, template, locale, business, issueDate, dueDate, supplyDate, notes, terms, rateById, preview, isQuotation]);
 
+  // Lines as submitted: fully-empty lines (the blank starting line,
+  // or an "Add line" never filled) are dropped, so they can never
+  // block a save. The server strips them again defensively, with the
+  // same rule, so the submitted index the server reports for a bad
+  // line maps back to this list.
+  const submittedLines = useMemo(() => lines.filter((l) => !isEmptyLine(l)), [lines]);
+
+  // Key of the line the last failed save pointed at, snapshotted when
+  // the error arrives so later edits don't move the highlight.
+  const [errorLineKey, setErrorLineKey] = useState<string | null>(null);
+  useEffect(() => {
+    if (state?.lineIndex !== undefined) {
+      setErrorLineKey(submittedLines[state.lineIndex]?.key ?? null);
+    } else {
+      setErrorLineKey(null);
+    }
+    // Only the error state may move the highlight — not later edits.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [state]);
+
   const itemsJson = JSON.stringify(
-    lines.map((l) => ({
+    submittedLines.map((l) => ({
       productId: l.productId || undefined,
       description: l.description,
       sku: l.sku || undefined,
@@ -388,15 +412,24 @@ export function InvoiceBuilder({
           taxRates={taxRates}
           currency={business.currency}
           lineTotalsByKey={preview.lineTotalsByKey}
+          highlightKey={errorLineKey}
         />
 
         <LineTotalsBox totals={preview.totals} currency={business.currency} />
 
-        <div className="sticky bottom-4 z-10 flex gap-2 rounded-lg border bg-card p-3 shadow-lg">
-          <SubmitButton>{submitLabel}</SubmitButton>
-          <Button variant="outline" asChild>
-            <Link href={cancelHref}>Cancel</Link>
-          </Button>
+        <div className="sticky bottom-4 z-10 space-y-2 rounded-lg border bg-card p-3 shadow-lg">
+          {state?.error ? (
+            <p role="alert" className="rounded-md bg-destructive/10 px-3 py-2 text-sm text-destructive">
+              Couldn&apos;t save — {state.error}
+              {errorLineKey ? ". Check the highlighted line." : ""}
+            </p>
+          ) : null}
+          <div className="flex gap-2">
+            <SubmitButton>{submitLabel}</SubmitButton>
+            <Button variant="outline" asChild>
+              <Link href={cancelHref}>Cancel</Link>
+            </Button>
+          </div>
         </div>
       </form>
 

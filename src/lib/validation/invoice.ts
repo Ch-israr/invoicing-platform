@@ -72,6 +72,81 @@ export const invoiceItemSchema = z
 
 export type InvoiceItemInput = z.infer<typeof invoiceItemSchema>;
 
+/**
+ * A line that carries nothing — no product, no description, no SKU,
+ * no price and no discount. Such lines come from the builder's blank
+ * starting line (or an "Add line" the user never filled): the blank
+ * line's defaults (quantity "1", unit "pcs", the default VAT rate)
+ * are not content, so they don't count. A fully-empty line must never
+ * block a save; a partially-filled line (e.g. a description with no
+ * price) is NOT empty and is still rejected with a visible error.
+ */
+export function isEmptyLineItem(item: unknown): boolean {
+  if (!item || typeof item !== "object") return false;
+  const line = item as Record<string, unknown>;
+  const text = (v: unknown) => (typeof v === "string" ? v.trim() : "");
+  const price = text(line.unitPrice);
+  const discountType = text(line.discountType);
+  const discountValue = text(line.discountValue);
+  const hasDiscount =
+    discountType !== "" &&
+    discountType !== "NONE" &&
+    discountValue !== "" &&
+    discountValue !== "0";
+  return (
+    text(line.productId) === "" &&
+    text(line.description) === "" &&
+    text(line.sku) === "" &&
+    (price === "" || Number(price) === 0) &&
+    !hasDiscount
+  );
+}
+
+/**
+ * Client-side twin of isEmptyLineItem, for the builder's LineState
+ * shape. Delegates to isEmptyLineItem so the two can never drift:
+ * the lines the client submits and the lines the server validates
+ * are judged by the same rule.
+ */
+export function isEmptyLineState(line: {
+  productId: string;
+  description: string;
+  sku: string;
+  unitPrice: string;
+  discountType: string;
+  discountValue: string;
+}): boolean {
+  return isEmptyLineItem(line);
+}
+
+/** Drop fully-empty lines from a raw create/update input before it is
+ * validated, so a blank starting line can never reject a save. The
+ * input is returned unchanged when it has no items array. */
+export function stripEmptyLineItems(rawInput: unknown): unknown {
+  if (!rawInput || typeof rawInput !== "object") return rawInput;
+  const obj = rawInput as Record<string, unknown>;
+  if (!Array.isArray(obj.items)) return rawInput;
+  return { ...obj, items: obj.items.filter((item) => !isEmptyLineItem(item)) };
+}
+
+/**
+ * The first validation issue as a user-facing error, plus the index
+ * of the offending line (into the items array as submitted) when the
+ * issue is about a line item, so the form can highlight it.
+ */
+export function firstValidationError(error: z.ZodError): {
+  error: string;
+  lineIndex?: number;
+} {
+  const first = error.issues[0];
+  if (!first) return { error: "Invalid input" };
+  const out: { error: string; lineIndex?: number } = { error: first.message };
+  if (first.path[0] === "items" && typeof first.path[1] === "number") {
+    out.lineIndex = first.path[1];
+  }
+  return out;
+}
+
 export const invoiceSchema = z
   .object({
     customerId: z.string().trim().min(1, "Choose a customer"),

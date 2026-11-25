@@ -6,7 +6,8 @@ import { Input } from "@/components/ui/input";
 import { Select } from "@/components/ui/select";
 import { Field } from "@/components/shared/form-fields";
 import { calculateInvoice } from "@/lib/money";
-import { formatMoney } from "@/lib/utils";
+import { cn, formatMoney } from "@/lib/utils";
+import { isEmptyLineState } from "@/lib/validation/invoice";
 
 /**
  * Shared line-item editor for the invoice builder, the quotation
@@ -73,6 +74,17 @@ export function blankLine(defaultRateId: string): LineState {
 /** The tax rate a fresh line defaults to (STD 5% when present). */
 export function defaultTaxRateId(taxRates: BuilderTaxRate[]): string {
   return taxRates.find((t) => t.code === "STD_5")?.id ?? taxRates[0]?.id ?? "";
+}
+
+/**
+ * A line that carries nothing — no product, no description, no SKU,
+ * no price and no discount. The blank line's defaults (quantity "1",
+ * unit "pcs", the default VAT rate) are not content, so they don't
+ * count. Delegates to `isEmptyLineState` in lib/validation/invoice.ts
+ * so the client and the server judge emptiness by the same rule.
+ */
+export function isEmptyLine(line: LineState): boolean {
+  return isEmptyLineState(line);
 }
 
 /**
@@ -155,6 +167,7 @@ export function LineItemsEditor({
   taxRates,
   currency,
   lineTotalsByKey,
+  highlightKey,
 }: {
   lines: LineState[];
   onLinesChange: (lines: LineState[]) => void;
@@ -162,6 +175,9 @@ export function LineItemsEditor({
   taxRates: BuilderTaxRate[];
   currency: string;
   lineTotalsByKey: Map<string, string>;
+  /** Key of the line the last failed save pointed at — it gets a red
+   * ring and a "Check this line" label. */
+  highlightKey?: string | null;
 }) {
   const defaultRateId = useMemo(() => defaultTaxRateId(taxRates), [taxRates]);
 
@@ -205,10 +221,22 @@ export function LineItemsEditor({
       </div>
       {lines.map((line, idx) => {
         const lineTotal = lineTotalsByKey.get(line.key);
+        const highlighted = highlightKey != null && line.key === highlightKey;
         return (
-          <div key={line.key} className="space-y-3 rounded-lg border bg-card p-4 shadow-sm">
+          <div
+            key={line.key}
+            className={cn(
+              "space-y-3 rounded-lg border bg-card p-4 shadow-sm",
+              highlighted && "border-destructive ring-2 ring-destructive/40",
+            )}
+          >
             <div className="flex items-center justify-between gap-2">
               <span className="text-sm font-semibold">Line {idx + 1}</span>
+              {highlighted ? (
+                <span className="text-sm font-medium text-destructive">
+                  Check this line
+                </span>
+              ) : null}
               <div className="flex items-center gap-3">
                 {lineTotal !== undefined ? (
                   <span className="text-sm font-semibold tabular-nums">
@@ -245,7 +273,6 @@ export function LineItemsEditor({
               <Field label="Description" htmlFor={`desc-${line.key}`}>
                 <Input
                   id={`desc-${line.key}`}
-                  required
                   value={line.description}
                   onChange={(e) => updateLine(line.key, { description: e.target.value })}
                   placeholder="e.g. Consulting — January"
@@ -264,7 +291,6 @@ export function LineItemsEditor({
                 <Input
                   id={`qty-${line.key}`}
                   inputMode="decimal"
-                  required
                   value={line.quantity}
                   onChange={(e) => updateLine(line.key, { quantity: e.target.value })}
                 />
@@ -272,7 +298,6 @@ export function LineItemsEditor({
               <Field label="Unit" htmlFor={`unit-${line.key}`}>
                 <Input
                   id={`unit-${line.key}`}
-                  required
                   value={line.unit}
                   onChange={(e) => updateLine(line.key, { unit: e.target.value })}
                 />
@@ -281,7 +306,6 @@ export function LineItemsEditor({
                 <Input
                   id={`price-${line.key}`}
                   inputMode="decimal"
-                  required
                   value={line.unitPrice}
                   onChange={(e) => updateLine(line.key, { unitPrice: e.target.value })}
                   placeholder="0.00"
@@ -307,7 +331,6 @@ export function LineItemsEditor({
                     <Input
                       aria-label="Discount value"
                       inputMode="decimal"
-                      required
                       value={line.discountValue}
                       onChange={(e) => updateLine(line.key, { discountValue: e.target.value })}
                       placeholder={line.discountType === "PERCENT" ? "10" : "25.00"}

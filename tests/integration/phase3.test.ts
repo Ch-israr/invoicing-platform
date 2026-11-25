@@ -533,3 +533,130 @@ describe("invoice reads and tenant isolation", () => {
     expect(wrongRate.ok).toBe(false);
   });
 });
+
+// ---------------------------------------------------------------------------
+// Empty line items (silent-save bug fix)
+// ---------------------------------------------------------------------------
+
+/** The blank line exactly as the builder serializes it. */
+function emptyLine(stdId: string) {
+  return {
+    description: "",
+    quantity: "1",
+    unit: "pcs",
+    unitPrice: "",
+    discountType: "NONE" as const,
+    discountValue: "0",
+    taxRateId: stdId,
+    taxCategory: "STANDARD" as const,
+    taxInclusive: false,
+  };
+}
+
+/** One filled line: 2 × 100.00, 10% discount, STD 5% → total 189.00. */
+function oneLine(stdId: string) {
+  return {
+    description: "Consulting",
+    quantity: "2",
+    unit: "hour",
+    unitPrice: "100",
+    discountType: "PERCENT" as const,
+    discountValue: "10",
+    taxRateId: stdId,
+    taxCategory: "STANDARD" as const,
+    taxInclusive: false,
+  };
+}
+
+describe("empty line items", () => {
+  it("a save with a fully-empty line plus a filled line succeeds and stores only the filled line", async () => {
+    const a = await makeAccount();
+    const customerId = await makeCustomer(a.userId);
+    const std = await stdRate(a.businessId);
+    const zero = await zeroRate(a.businessId);
+
+    const created = await createInvoice(a.userId, {
+      ...draftInput(customerId, std.id, zero.id),
+      items: [emptyLine(std.id), oneLine(std.id)],
+    });
+    expect(created.ok).toBe(true);
+    if (!created.ok) throw new Error("unreachable");
+    const count = await prisma.invoiceItem.count({
+      where: { invoiceId: created.data.id },
+    });
+    expect(count).toBe(1);
+    const { invoice } = await getInvoiceDetail(a.userId, created.data.id);
+    expect(invoice.grandTotal.toString()).toBe("189");
+  });
+
+  it("a save with only empty lines is rejected with a visible error", async () => {
+    const a = await makeAccount();
+    const customerId = await makeCustomer(a.userId);
+    const std = await stdRate(a.businessId);
+    const zero = await zeroRate(a.businessId);
+
+    const created = await createInvoice(a.userId, {
+      ...draftInput(customerId, std.id, zero.id),
+      items: [emptyLine(std.id), emptyLine(std.id)],
+    });
+    expect(created.ok).toBe(false);
+    if (created.ok) throw new Error("unreachable");
+    expect(created.error).toMatch(/at least one line item/i);
+    expect(created.lineIndex).toBeUndefined();
+  });
+
+  it("a partially-filled line is rejected with a surfaced error pointing at that line", async () => {
+    const a = await makeAccount();
+    const customerId = await makeCustomer(a.userId);
+    const std = await stdRate(a.businessId);
+    const zero = await zeroRate(a.businessId);
+
+    // Empty first line (dropped) + description with no price.
+    const bad = await createInvoice(a.userId, {
+      ...draftInput(customerId, std.id, zero.id),
+      items: [emptyLine(std.id), { ...oneLine(std.id), unitPrice: "" }],
+    });
+    expect(bad.ok).toBe(false);
+    if (bad.ok) throw new Error("unreachable");
+    expect(bad.error).toMatch(/amount/i);
+    // Index into the submitted lines (empty line already dropped).
+    expect(bad.lineIndex).toBe(0);
+  });
+
+  it("a bad second line after a good first line reports line index 1", async () => {
+    const a = await makeAccount();
+    const customerId = await makeCustomer(a.userId);
+    const std = await stdRate(a.businessId);
+    const zero = await zeroRate(a.businessId);
+
+    const bad = await createInvoice(a.userId, {
+      ...draftInput(customerId, std.id, zero.id),
+      items: [oneLine(std.id), { ...oneLine(std.id), quantity: "0" }],
+    });
+    expect(bad.ok).toBe(false);
+    if (bad.ok) throw new Error("unreachable");
+    expect(bad.error).toMatch(/quantity/i);
+    expect(bad.lineIndex).toBe(1);
+  });
+
+  it("editing a draft with a fully-empty line plus a filled line succeeds", async () => {
+    const a = await makeAccount();
+    const customerId = await makeCustomer(a.userId);
+    const std = await stdRate(a.businessId);
+    const zero = await zeroRate(a.businessId);
+
+    const created = await createInvoice(a.userId, draftInput(customerId, std.id, zero.id));
+    expect(created.ok).toBe(true);
+    if (!created.ok) throw new Error("unreachable");
+
+    const updated = await updateInvoice(a.userId, created.data.id, {
+      ...draftInput(customerId, std.id, zero.id),
+      items: [emptyLine(std.id), oneLine(std.id)],
+    });
+    expect(updated.ok).toBe(true);
+    const count = await prisma.invoiceItem.count({
+      where: { invoiceId: created.data.id },
+    });
+    expect(count).toBe(1);
+  });
+});

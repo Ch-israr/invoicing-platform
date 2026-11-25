@@ -32,7 +32,11 @@ import {
   recurringSchema,
   type RecurringInput,
 } from "@/lib/validation/recurring";
-import { invoiceItemSchema } from "@/lib/validation/invoice";
+import {
+  firstValidationError,
+  invoiceItemSchema,
+  stripEmptyLineItems,
+} from "@/lib/validation/invoice";
 import type { ServiceResult } from "./invoice.service";
 
 /**
@@ -154,9 +158,9 @@ export async function createRecurring(
   userId: string,
   rawInput: unknown,
 ): Promise<ServiceResult<{ id: string }>> {
-  const parsed = recurringSchema.safeParse(rawInput);
+  const parsed = recurringSchema.safeParse(stripEmptyLineItems(rawInput));
   if (!parsed.success) {
-    return { ok: false, error: parsed.error.issues[0]?.message ?? "Invalid input" };
+    return { ok: false, ...firstValidationError(parsed.error) };
   }
   const business = await getDefaultBusinessForUser(userId);
   if (!business) return { ok: false, error: "No business found" };
