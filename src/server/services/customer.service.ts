@@ -198,7 +198,7 @@ export async function getCustomerDetail(userId: string, customerId: string) {
   const { business, customer } = await getCustomerForUser(userId, customerId);
   await requireMembership(userId, business.id);
   const now = new Date();
-  const [totals, overdue, invoices, payments] = await Promise.all([
+  const [totals, overdue, invoices, payments, creditNotes] = await Promise.all([
     prisma.invoice.aggregate({
       where: { businessId: business.id, customerId: customer.id, status: { in: BILLED_STATUSES } },
       _sum: { grandTotal: true, amountPaid: true, balance: true },
@@ -227,6 +227,12 @@ export async function getCustomerDetail(userId: string, customerId: string) {
       take: 20,
       select: { id: true, date: true, amount: true, method: true, reference: true, invoice: { select: { number: true } } },
     }),
+    prisma.creditNote.findMany({
+      where: { businessId: business.id, invoice: { customerId: customer.id } },
+      orderBy: { createdAt: "desc" },
+      take: 20,
+      select: { id: true, number: true, status: true, grandTotal: true, createdAt: true, invoice: { select: { number: true } } },
+    }),
   ]);
   return {
     business,
@@ -241,6 +247,7 @@ export async function getCustomerDetail(userId: string, customerId: string) {
     },
     invoices,
     payments,
+    creditNotes,
   };
 }
 

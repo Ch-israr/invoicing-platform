@@ -12,7 +12,7 @@ const STYLES: Record<string, string> = {
   EXPIRED: "bg-slate-500/10 text-slate-600 dark:text-slate-400",
 };
 
-const LABELS: Record<string, string> = {
+export const INVOICE_STATUS_LABELS: Record<string, string> = {
   DRAFT: "Draft",
   ISSUED: "Issued",
   SENT: "Sent",
@@ -45,7 +45,7 @@ export function InvoiceStatusBadge({
         STYLES[status] ?? STYLES.DRAFT,
       )}
     >
-      {LABELS[status] ?? status}
+      {INVOICE_STATUS_LABELS[status] ?? status}
     </span>
   );
 }

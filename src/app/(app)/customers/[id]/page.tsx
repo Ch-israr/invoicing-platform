@@ -3,6 +3,8 @@ import Link from "next/link";
 import {
   Banknote,
   Hourglass,
+  Mail,
+  Phone,
   ReceiptText,
   Wallet,
   type LucideIcon,
@@ -13,8 +15,11 @@ import { cn, formatMoney } from "@/lib/utils";
 import { isDraftNumber } from "@/lib/numbering";
 import { getCustomerDetail } from "@/server/services/customer.service";
 import { Button } from "@/components/ui/button";
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
-import { InvoiceStatusBadge } from "@/components/invoices/status-badge";
+import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
+import {
+  CustomerTransactions,
+  type CustomerTransactionRow,
+} from "@/components/customers/customer-transactions";
 import { DeleteButton } from "@/components/shared/delete-button";
 import { deleteCustomerAction } from "../actions";
 
@@ -35,15 +40,6 @@ function plural(count: number, one: string, many: string): string {
   return count === 1 ? one : many;
 }
 
-function shortDate(value: Date | string): string {
-  return new Intl.DateTimeFormat("en-GB", {
-    day: "2-digit",
-    month: "short",
-    year: "numeric",
-    timeZone: "UTC",
-  }).format(new Date(value));
-}
-
 export default async function CustomerDetailPage({
   params,
 }: {
@@ -61,12 +57,64 @@ export default async function CustomerDetailPage({
     throw err;
   }
 
-  const { business, customer, stats, invoices, payments } = detail;
+  const { business, customer, stats, invoices, payments, creditNotes } = detail;
   const currency = business.currency;
   const now = new Date();
   const overdueBalance = dec(stats.overdueBalance);
   const outstanding = dec(stats.outstanding);
   const isActive = customer.status === "ACTIVE";
+
+  // One unified transaction list: invoices, payments and credit notes,
+  // newest first. Serialized to plain JSON for the client filter/table.
+  const transactions: CustomerTransactionRow[] = [
+    ...invoices.map((inv) => {
+      const isOverdue =
+        (OPEN_STATUSES as readonly string[]).includes(inv.status) &&
+        new Date(inv.dueDate) < now &&
+        dec(inv.balance) > 0;
+      return {
+        id: `invoice-${inv.id}`,
+        kind: "invoice" as const,
+        date: new Date(inv.issueDate).toISOString(),
+        typeLabel: "Invoice",
+        detail: `Due ${new Intl.DateTimeFormat("en-GB", { day: "2-digit", month: "short", year: "numeric", timeZone: "UTC" }).format(new Date(inv.dueDate))}`,
+        number: isDraftNumber(inv.number) ? "Draft" : inv.number,
+        href: `/invoices/${inv.id}`,
+        amount: dec(inv.grandTotal),
+        statusKey: inv.status,
+        isOverdue,
+        dueLabel: isOverdue
+          ? `${formatMoney(dec(inv.balance), currency)} due`
+          : null,
+      };
+    }),
+    ...payments.map((p) => ({
+      id: `payment-${p.id}`,
+      kind: "payment" as const,
+      date: new Date(p.date).toISOString(),
+      typeLabel: "Payment",
+      detail: `${METHOD_LABELS[p.method] ?? p.method} · Invoice ${isDraftNumber(p.invoice.number) ? "Draft" : p.invoice.number}`,
+      number: p.reference ?? "—",
+      href: `/payments/${p.id}/receipt`,
+      amount: dec(p.amount),
+      statusKey: "RECEIVED",
+      isOverdue: false,
+      dueLabel: null,
+    })),
+    ...creditNotes.map((cn) => ({
+      id: `credit-note-${cn.id}`,
+      kind: "credit-note" as const,
+      date: new Date(cn.createdAt).toISOString(),
+      typeLabel: "Credit note",
+      detail: `Invoice ${isDraftNumber(cn.invoice.number) ? "Draft" : cn.invoice.number}`,
+      number: cn.number,
+      href: `/credit-notes/${cn.id}`,
+      amount: -dec(cn.grandTotal),
+      statusKey: cn.status,
+      isOverdue: false,
+      dueLabel: null,
+    })),
+  ].sort((a, b) => +new Date(b.date) - +new Date(a.date));
 
   // Secondary figures share the dashboard's fixed pattern: small grey
   // label, one large bold figure, one small context line, with an
@@ -81,7 +129,7 @@ export default async function CustomerDetailPage({
     {
       label: "Invoices",
       value: String(stats.invoiceCount),
-      hint: "Total invoices",
+      hint: "Issued invoices",
       icon: ReceiptText,
       chip: "bg-slate-500/10 text-slate-600 dark:text-slate-400",
     },
@@ -122,6 +170,24 @@ export default async function CustomerDetailPage({
               {isActive ? "Active" : "Inactive"}
             </span>
           </p>
+          {customer.email || customer.phone ? (
+            <div className="mt-2 flex gap-1.5">
+              {customer.email ? (
+                <Button asChild variant="outline" size="icon" className="h-8 w-8" aria-label={`Email ${customer.email}`}>
+                  <a href={`mailto:${customer.email}`}>
+                    <Mail className="h-4 w-4" aria-hidden />
+                  </a>
+                </Button>
+              ) : null}
+              {customer.phone ? (
+                <Button asChild variant="outline" size="icon" className="h-8 w-8" aria-label={`Call ${customer.phone}`}>
+                  <a href={`tel:${customer.phone}`}>
+                    <Phone className="h-4 w-4" aria-hidden />
+                  </a>
+                </Button>
+              ) : null}
+            </div>
+          ) : null}
         </div>
         <div className="flex gap-2">
           <Button asChild>
@@ -137,38 +203,50 @@ export default async function CustomerDetailPage({
         </div>
       </div>
 
-      {/* Hero figure: the outstanding balance is the number that matters
-          most, so it gets the large figure; the overdue block sits beside
-          it, mirroring the dashboard hero. */}
-      <Card className="border-primary/20">
-        <CardContent className="flex flex-wrap items-center justify-between gap-6 p-6">
-          <div>
-            <p className="flex items-center gap-2 text-sm text-muted-foreground">
-              <span className="rounded-md bg-amber-600/10 p-1.5 text-amber-700 dark:text-amber-400">
-                <Hourglass className="h-4 w-4" aria-hidden />
-              </span>
-              Outstanding balance
-            </p>
-            <p className="mt-2 text-4xl font-bold tracking-tight tabular-nums">
-              {formatMoney(outstanding, currency)}
-            </p>
-            <p className="mt-1 text-sm text-muted-foreground">
-              {stats.invoiceCount}{" "}
-              {plural(stats.invoiceCount, "invoice", "invoices")} ·{" "}
-              {stats.overdueCount}{" "}
-              {plural(stats.overdueCount, "overdue", "overdue")}
-            </p>
-          </div>
-          <div className="text-left sm:text-right">
-            <p className="text-sm text-muted-foreground">Overdue</p>
-            <p className="text-2xl font-bold tabular-nums text-amber-700 dark:text-amber-400">
-              {formatMoney(overdueBalance, currency)}
-            </p>
-            <p className="text-sm text-muted-foreground">
-              {overdueBalance > 0
-                ? "Chase these first — they are past their due date."
-                : "Nothing overdue."}
-            </p>
+      {/* Financial summary: a distinct blue-tinted card of its own, in the
+          reference's shape — titled, with the outstanding balance as the
+          large figure and the overdue payment as a dot-labelled row. The
+          outstanding balance IS the open balance, so it is not repeated. */}
+      <Card className="border-primary/20 bg-primary/[0.04] dark:bg-primary/[0.08]">
+        <CardContent className="space-y-4 p-6">
+          <p className="flex items-center gap-2 text-sm font-semibold">
+            <span className="rounded-md bg-primary/10 p-1.5 text-primary">
+              <Wallet className="h-4 w-4" aria-hidden />
+            </span>
+            Financial summary
+          </p>
+          <div className="flex flex-wrap items-center justify-between gap-6">
+            <div>
+              <p className="flex items-center gap-2 text-sm text-muted-foreground">
+                <span className="rounded-md bg-amber-600/10 p-1.5 text-amber-700 dark:text-amber-400">
+                  <Hourglass className="h-4 w-4" aria-hidden />
+                </span>
+                Outstanding balance
+              </p>
+              <p className="mt-2 text-4xl font-bold tracking-tight tabular-nums">
+                {formatMoney(outstanding, currency)}
+              </p>
+              <p className="mt-1 text-sm text-muted-foreground">
+                {stats.invoiceCount}{" "}
+                {plural(stats.invoiceCount, "invoice", "invoices")} ·{" "}
+                {stats.overdueCount}{" "}
+                {plural(stats.overdueCount, "overdue", "overdue")}
+              </p>
+            </div>
+            <div className="text-left sm:text-right">
+              <p className="flex items-center gap-2 text-sm text-muted-foreground sm:justify-end">
+                <span className="h-2 w-2 rounded-full bg-red-600" aria-hidden />
+                Overdue payment
+              </p>
+              <p className="mt-1 text-2xl font-bold tabular-nums text-red-700 dark:text-red-400">
+                {formatMoney(overdueBalance, currency)}
+              </p>
+              <p className="mt-1 text-sm text-muted-foreground">
+                {overdueBalance > 0
+                  ? "Chase these first — they are past their due date."
+                  : "Nothing overdue."}
+              </p>
+            </div>
           </div>
         </CardContent>
       </Card>
@@ -201,140 +279,29 @@ export default async function CustomerDetailPage({
           <p><span className="text-muted-foreground">Phone: </span>{customer.phone ?? "—"}</p>
           <p><span className="text-muted-foreground">Country: </span>{customer.country}</p>
           <p><span className="text-muted-foreground">TRN: </span>{customer.trn ?? "—"}</p>
-          <p><span className="text-muted-foreground">Billing address: </span>{customer.billingAddress ?? "—"}</p>
-          <p><span className="text-muted-foreground">Shipping address: </span>{customer.shippingAddress ?? "—"}</p>
+          <p>
+            <span className="text-muted-foreground">Billing address: </span>
+            {customer.billingAddress ?? (
+              <Link href={`/customers/${customer.id}/edit`} className="font-medium text-primary hover:underline">
+                Add billing address
+              </Link>
+            )}
+          </p>
+          <p>
+            <span className="text-muted-foreground">Shipping address: </span>
+            {customer.shippingAddress ?? (
+              <Link href={`/customers/${customer.id}/edit`} className="font-medium text-primary hover:underline">
+                Add shipping address
+              </Link>
+            )}
+          </p>
           {customer.notes ? (
             <p className="sm:col-span-2"><span className="text-muted-foreground">Notes: </span>{customer.notes}</p>
           ) : null}
         </CardContent>
       </Card>
 
-      <Card>
-        <CardHeader>
-          <div className="flex items-start justify-between gap-4">
-            <div className="space-y-1.5">
-              <CardTitle>Invoice History</CardTitle>
-              <CardDescription>
-                {invoices.length === 0
-                  ? "No invoices yet — create the first one to start billing this customer."
-                  : "Latest invoices for this customer — open one to follow up."}
-              </CardDescription>
-            </div>
-            {invoices.length > 0 ? (
-              <Button asChild variant="ghost" size="sm" className="shrink-0">
-                <Link href="/invoices">View all</Link>
-              </Button>
-            ) : null}
-          </div>
-        </CardHeader>
-        <CardContent>
-          {invoices.length === 0 ? (
-            <div>
-              <p className="text-sm text-muted-foreground">
-                Nothing here yet.
-              </p>
-              <Button asChild size="sm" className="mt-3">
-                <Link href="/invoices/new">Create invoice</Link>
-              </Button>
-            </div>
-          ) : (
-            <ul className="space-y-1">
-              {invoices.map((inv) => {
-                const isOverdue =
-                  (OPEN_STATUSES as readonly string[]).includes(inv.status) &&
-                  new Date(inv.dueDate) < now &&
-                  dec(inv.balance) > 0;
-                return (
-                  <li key={inv.id}>
-                    <Link
-                      href={`/invoices/${inv.id}`}
-                      className={cn(
-                        "flex items-center justify-between gap-3 rounded-lg px-2 py-2 text-sm transition-colors hover:bg-muted/60",
-                        isOverdue &&
-                          "bg-red-50/70 hover:bg-red-100/70 dark:bg-red-950/20 dark:hover:bg-red-950/30",
-                      )}
-                    >
-                      <span className="min-w-0 truncate">
-                        <span className="font-medium">
-                          {isDraftNumber(inv.number) ? "Draft" : inv.number}
-                        </span>
-                        <span className="text-muted-foreground">
-                          {" "}· due {shortDate(inv.dueDate)}
-                        </span>
-                      </span>
-                      <span className="flex shrink-0 items-center gap-2">
-                        <InvoiceStatusBadge status={inv.status} isOverdue={isOverdue} />
-                        <span className="font-medium tabular-nums">
-                          {formatMoney(dec(inv.grandTotal), currency)}
-                          {dec(inv.balance) > 0 ? (
-                            <span className="hidden text-muted-foreground sm:inline">
-                              {" "}({formatMoney(dec(inv.balance), currency)} due)
-                            </span>
-                          ) : null}
-                        </span>
-                      </span>
-                    </Link>
-                  </li>
-                );
-              })}
-            </ul>
-          )}
-        </CardContent>
-      </Card>
-
-      <Card>
-        <CardHeader>
-          <div className="flex items-start justify-between gap-4">
-            <div className="space-y-1.5">
-              <CardTitle>Payment History</CardTitle>
-              <CardDescription>
-                {payments.length === 0
-                  ? "No payments recorded yet."
-                  : "Latest payments from this customer."}
-              </CardDescription>
-            </div>
-            {payments.length > 0 ? (
-              <Button asChild variant="ghost" size="sm" className="shrink-0">
-                <Link href="/payments">View all</Link>
-              </Button>
-            ) : null}
-          </div>
-        </CardHeader>
-        <CardContent>
-          {payments.length === 0 ? (
-            <div>
-              <p className="text-sm text-muted-foreground">
-                No payments recorded yet. Record one from an issued invoice.
-              </p>
-              <Button asChild size="sm" variant="outline" className="mt-3">
-                <Link href="/invoices">View invoices</Link>
-              </Button>
-            </div>
-          ) : (
-            <ul className="space-y-1">
-              {payments.map((p) => (
-                <li key={p.id}>
-                  <Link
-                    href={`/payments/${p.id}/receipt`}
-                    className="flex items-center justify-between gap-3 rounded-lg px-2 py-2 text-sm transition-colors hover:bg-muted/60"
-                  >
-                    <span className="min-w-0 truncate">
-                      <span className="font-medium">{shortDate(p.date)}</span>
-                      <span className="text-muted-foreground">
-                        {" "}· {METHOD_LABELS[p.method] ?? p.method} · Invoice {p.invoice.number}
-                        {p.reference ? ` · ${p.reference}` : ""}
-                      </span>
-                    </span>
-                    <span className="shrink-0 font-medium tabular-nums">
-                      {formatMoney(dec(p.amount), currency)}
-                    </span>
-                  </Link>
-                </li>
-              ))}
-            </ul>
-          )}
-        </CardContent>
-      </Card>
+      <CustomerTransactions rows={transactions} currency={currency} />
     </div>
   );
 }
