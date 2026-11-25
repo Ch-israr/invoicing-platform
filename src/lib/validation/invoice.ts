@@ -147,6 +147,44 @@ export function firstValidationError(error: z.ZodError): {
   return out;
 }
 
+/** Whole days, 0 or more (the early-payment validity window). */
+const daysString = z
+  .string()
+  .trim()
+  .regex(/^\d+$/, "Enter a whole number of days (0 or more)")
+  .refine((v) => Number(v) >= 0, "Days must be 0 or more");
+
+/** Validate one discount (invoice-level or early-payment) against
+ * its type: PERCENT takes 0–100, FIXED takes a money amount ≥ 0.
+ * The server clamps the applied amount to the taxable base / balance
+ * when the totals are computed (see lib/money.ts). */
+function discountRefine(
+  type: "NONE" | "PERCENT" | "FIXED",
+  value: string,
+  ctx: z.RefinementCtx,
+  valuePath: string[],
+) {
+  if (type === "PERCENT") {
+    const parsed = percentString.safeParse(value);
+    if (!parsed.success) {
+      ctx.addIssue({
+        code: z.ZodIssueCode.custom,
+        message: "Discount must be a percentage between 0 and 100",
+        path: valuePath,
+      });
+    }
+  } else if (type === "FIXED") {
+    const parsed = moneyString.safeParse(value);
+    if (!parsed.success) {
+      ctx.addIssue({
+        code: z.ZodIssueCode.custom,
+        message: "Enter a valid fixed discount amount",
+        path: valuePath,
+      });
+    }
+  }
+}
+
 export const invoiceSchema = z
   .object({
     customerId: z.string().trim().min(1, "Choose a customer"),
@@ -162,6 +200,13 @@ export const invoiceSchema = z
     terms: optionalText(5000),
     template: z.enum(["classic", "modern", "minimal"]).default("classic"),
     locale: z.enum(["en", "ar"]).default("en"),
+    // Invoice-level discount (draft-time; locked once issued).
+    invoiceDiscountType: z.enum(["NONE", "PERCENT", "FIXED"]).default("NONE"),
+    invoiceDiscountValue: z.string().trim().default("0"),
+    // Early-payment discount (draft-time; applies at payment time).
+    earlyDiscountType: z.enum(["NONE", "PERCENT", "FIXED"]).default("NONE"),
+    earlyDiscountValue: z.string().trim().default("0"),
+    earlyDiscountDays: z.string().trim().default("0"),
     items: z
       .array(invoiceItemSchema)
       .min(1, "Add at least one line item")
@@ -174,6 +219,22 @@ export const invoiceSchema = z
         message: "Due date cannot be before the issue date",
         path: ["dueDate"],
       });
+    }
+    discountRefine(inv.invoiceDiscountType, inv.invoiceDiscountValue, ctx, [
+      "invoiceDiscountValue",
+    ]);
+    discountRefine(inv.earlyDiscountType, inv.earlyDiscountValue, ctx, [
+      "earlyDiscountValue",
+    ]);
+    if (inv.earlyDiscountType !== "NONE") {
+      const parsed = daysString.safeParse(inv.earlyDiscountDays);
+      if (!parsed.success) {
+        ctx.addIssue({
+          code: z.ZodIssueCode.custom,
+          message: "Enter a whole number of days (0 or more)",
+          path: ["earlyDiscountDays"],
+        });
+      }
     }
   });
 

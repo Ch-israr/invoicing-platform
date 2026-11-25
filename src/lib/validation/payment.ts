@@ -26,6 +26,14 @@ export const paymentSchema = z.object({
   method: z.enum(["CASH", "BANK_TRANSFER", "CARD", "OTHER"]).default("BANK_TRANSFER"),
   reference: optionalText(200),
   notes: optionalText(5000),
+  // Checkbox in the Record Payment dialog ("Apply early-payment
+  // discount"). Absent when unticked. The server recomputes the
+  // saving from the invoice row and the current balance — the client
+  // never decides the discount amount.
+  applyEarlyDiscount: z
+    .string()
+    .optional()
+    .transform((v) => v === "true"),
 });
 
 export type PaymentInput = z.infer<typeof paymentSchema>;

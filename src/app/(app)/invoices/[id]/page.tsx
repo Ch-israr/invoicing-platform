@@ -4,6 +4,7 @@ import { auth } from "@/lib/auth";
 import { TenantError } from "@/lib/tenant";
 import { formatMoney } from "@/lib/utils";
 import { isDraftNumber } from "@/lib/numbering";
+import { earlyDiscountDeadline } from "@/lib/money";
 import {
   isSnapshotPayload,
   previewDataFromLive,
@@ -347,6 +348,22 @@ export default async function InvoiceDetailPage({
                   <dt className="text-muted-foreground">Due</dt>
                   <dd className="tabular-nums">{dateFmt.format(invoice.dueDate)}</dd>
                 </div>
+                {invoice.earlyDiscountType !== "NONE" ? (
+                  <div className="flex justify-between gap-2">
+                    <dt className="text-muted-foreground">Early-payment discount</dt>
+                    <dd className="text-right">
+                      {invoice.earlyDiscountType === "PERCENT"
+                        ? `${invoice.earlyDiscountValue.toString()}%`
+                        : formatMoney(invoice.earlyDiscountValue.toString(), currency)}{" "}
+                      if paid within {invoice.earlyDiscountDays} day
+                      {invoice.earlyDiscountDays === 1 ? "" : "s"} (by{" "}
+                      {formatDate(
+                        earlyDiscountDeadline(invoice.issueDate, invoice.earlyDiscountDays),
+                      )}
+                      )
+                    </dd>
+                  </div>
+                ) : null}
                 <div className="flex justify-between gap-2">
                   <dt className="text-muted-foreground">Grand total</dt>
                   <dd className="tabular-nums">{formatMoney(invoice.grandTotal.toString(), currency)}</dd>
@@ -419,6 +436,12 @@ export default async function InvoiceDetailPage({
                     invoiceId={invoice.id}
                     currency={currency}
                     balance={invoice.balance.toString()}
+                    issueDate={invoice.issueDate.toISOString().slice(0, 10)}
+                    earlyDiscount={{
+                      type: invoice.earlyDiscountType,
+                      value: invoice.earlyDiscountValue.toString(),
+                      days: invoice.earlyDiscountDays,
+                    }}
                   />
                 ) : null}
                 <PaymentList
@@ -426,6 +449,7 @@ export default async function InvoiceDetailPage({
                   payments={payments.map((p) => ({
                     ...p,
                     amount: p.amount.toString(),
+                    earlyDiscountAmount: p.earlyDiscountAmount.toString(),
                     refunds: p.refunds.map((r) => ({ ...r, amount: r.amount.toString() })),
                   }))}
                   currency={currency}

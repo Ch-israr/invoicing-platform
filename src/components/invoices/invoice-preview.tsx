@@ -27,6 +27,8 @@ const LABELS = {
     total: "Total",
     subtotal: "Subtotal",
     discountTotal: "Discount",
+    invoiceDiscount: "Invoice discount",
+    subtotalAfterDiscount: "Subtotal after discount",
     taxable: "Taxable Amount",
     vatAmount: "VAT",
     grandTotal: "Grand Total",
@@ -56,6 +58,8 @@ const LABELS = {
     total: "المجموع",
     subtotal: "المجموع الفرعي",
     discountTotal: "الخصم",
+    invoiceDiscount: "خصم الفاتورة",
+    subtotalAfterDiscount: "المجموع الفرعي بعد الخصم",
     taxable: "المبلغ الخاضع للضريبة",
     vatAmount: "ضريبة القيمة المضافة",
     grandTotal: "المجموع الإجمالي",
@@ -219,16 +223,36 @@ export function InvoicePreview({ data }: { data: InvoicePreviewData }) {
               <dt className="text-slate-500">{t.subtotal}</dt>
               <dd>{money(data.totals.subtotal)}</dd>
             </div>
-            {data.totals.discountTotal !== "0" ? (
-              <div className="flex justify-between">
-                <dt className="text-slate-500">{t.discountTotal}</dt>
-                <dd>−{money(data.totals.discountTotal)}</dd>
-              </div>
-            ) : null}
-            <div className="flex justify-between">
-              <dt className="text-slate-500">{t.taxable}</dt>
-              <dd>{money(data.totals.taxableAmount)}</dd>
-            </div>
+            {(() => {
+              // Per-line discounts and the invoice-level discount are
+              // shown on separate rows; without an invoice discount
+              // this renders exactly as before.
+              const lineDiscount =
+                data.totals.lineDiscountTotal ?? data.totals.discountTotal;
+              const invoiceDiscount = data.totals.invoiceDiscountTotal ?? "0";
+              return (
+                <>
+                  {lineDiscount !== "0" ? (
+                    <div className="flex justify-between">
+                      <dt className="text-slate-500">{t.discountTotal}</dt>
+                      <dd>−{money(lineDiscount)}</dd>
+                    </div>
+                  ) : null}
+                  {invoiceDiscount !== "0" ? (
+                    <div className="flex justify-between">
+                      <dt className="text-slate-500">{t.invoiceDiscount}</dt>
+                      <dd>−{money(invoiceDiscount)}</dd>
+                    </div>
+                  ) : null}
+                  <div className="flex justify-between">
+                    <dt className="text-slate-500">
+                      {invoiceDiscount !== "0" ? t.subtotalAfterDiscount : t.taxable}
+                    </dt>
+                    <dd>{money(data.totals.taxableAmount)}</dd>
+                  </div>
+                </>
+              );
+            })()}
             <div className="flex justify-between">
               <dt className="text-slate-500">{t.vatAmount}</dt>
               <dd>{money(data.totals.vatAmount)}</dd>

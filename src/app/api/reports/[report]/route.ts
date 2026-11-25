@@ -3,6 +3,7 @@ import { auth } from "@/lib/auth";
 import { apiRateLimit } from "@/lib/rate-limit";
 import { TenantError } from "@/lib/tenant";
 import {
+  getAgingReport,
   getCustomerBalances,
   getOverdueReport,
   getProductRevenue,
@@ -12,6 +13,7 @@ import {
   toIsoDay,
 } from "@/server/services/report.service";
 import {
+  agingCsv,
   customersCsv,
   overdueCsv,
   productsCsv,
@@ -19,7 +21,7 @@ import {
   vatCsv,
 } from "@/lib/report-csv";
 
-const REPORTS = ["revenue", "vat", "overdue", "customers", "products"] as const;
+const REPORTS = ["revenue", "vat", "overdue", "customers", "products", "aging"] as const;
 
 /**
  * GET /api/reports/[report]?from=YYYY-MM-DD&to=YYYY-MM-DD — CSV export.
@@ -57,6 +59,9 @@ export async function GET(
     } else if (report === "overdue") {
       const { rows } = await getOverdueReport(session.user.id);
       csv = overdueCsv(rows);
+    } else if (report === "aging") {
+      const { rows } = await getAgingReport(session.user.id);
+      csv = agingCsv(rows);
     } else if (report === "customers") {
       const { rows } = await getCustomerBalances(session.user.id, range);
       csv = customersCsv(rows);

@@ -12,6 +12,10 @@ import {
 import { logActivity } from "@/lib/activity";
 import { PAGE_SIZE, pageCount as calcPageCount } from "@/lib/pagination";
 import {
+  earlyDiscountSaving,
+  isWithinEarlyDiscountWindow,
+} from "@/lib/money";
+import {
   getInvoiceForUser,
   recomputeInvoiceState,
   type ServiceResult,
@@ -75,10 +79,49 @@ export async function recordPayment(
     });
     if (!current) return { ok: false as const, error: "Invoice not found" };
     const balance = new Decimal(current.balance.toString());
-    if (amount.greaterThan(balance)) {
+    // Early-payment discount: the saving is recomputed here from the
+    // invoice row and the balance re-read under the lock — the client
+    // never decides the discount amount. The discount does NOT reduce
+    // the invoice total; it is granted on this payment, so paying
+    // (balance − saving) with the box ticked settles the invoice.
+    // Eligibility is judged against TODAY, not the payment date.
+    let earlyDiscountAmount = new Decimal(0);
+    if (input.applyEarlyDiscount) {
+      if (invoice.earlyDiscountType === "NONE") {
+        return { ok: false as const, error: "This invoice has no early-payment discount" };
+      }
+      if (!isWithinEarlyDiscountWindow(invoice.issueDate, invoice.earlyDiscountDays)) {
+        return { ok: false as const, error: "The early-payment discount window has expired" };
+      }
+      const saving = earlyDiscountSaving(
+        balance,
+        invoice.earlyDiscountType,
+        invoice.earlyDiscountValue,
+      );
+      if (saving.lessThanOrEqualTo(0)) {
+        return { ok: false as const, error: "The early-payment discount is zero on the remaining balance" };
+      }
+      if (saving.greaterThanOrEqualTo(balance)) {
+        return { ok: false as const, error: "The early-payment discount would cover the whole balance — record a smaller discount instead" };
+      }
+      earlyDiscountAmount = saving;
+    }
+    const payable = balance.sub(earlyDiscountAmount);
+    if (amount.greaterThan(payable)) {
       return {
         ok: false as const,
-        error: `Payment of ${amount.toFixed(2)} exceeds the outstanding balance of ${balance.toFixed(2)}`,
+        error: `Payment of ${amount.toFixed(2)} exceeds the outstanding balance of ${payable.toFixed(2)}${earlyDiscountAmount.greaterThan(0) ? " after the early-payment discount" : ""}`,
+      };
+    }
+    // The saving is a % (or fixed amount) of the whole remaining
+    // balance, so it can only be granted on a payment that settles
+    // the invoice — granting it on a partial payment would let a
+    // small payment take the whole discount. The dialog auto-fills
+    // the settling amount when the box is ticked.
+    if (earlyDiscountAmount.greaterThan(0) && amount.lessThan(payable)) {
+      return {
+        ok: false as const,
+        error: `The early-payment discount of ${earlyDiscountAmount.toFixed(2)} applies when paying the full remaining balance of ${payable.toFixed(2)} — untick the discount to record a partial payment`,
       };
     }
     const created = await tx.payment.create({
@@ -91,6 +134,7 @@ export async function recordPayment(
         method: input.method,
         reference: input.reference ?? null,
         notes: input.notes ?? null,
+        earlyDiscountAmount,
         createdById: userId,
       },
     });
@@ -109,6 +153,7 @@ export async function recordPayment(
         number: invoice.number,
         amount: amount.toString(),
         method: input.method,
+        earlyDiscountAmount: earlyDiscountAmount.toString(),
         status: state.status,
       },
     });
@@ -304,10 +349,13 @@ export async function getReceiptData(userId: string, paymentId: string) {
   });
   if (!payment) throw new TenantError(404, "Payment not found");
   const invoice = payment.invoice;
+  // Same ledger rule as readInvoicePaymentState: an early-payment
+  // discount granted on a payment counts toward the total paid.
   const totalPaid = invoice.payments.reduce(
     (acc, p) =>
       acc
         .add(new Decimal(p.amount.toString()))
+        .add(new Decimal(p.earlyDiscountAmount.toString()))
         .sub(
           p.refunds.reduce(
             (r, x) => r.add(new Decimal(x.amount.toString())),

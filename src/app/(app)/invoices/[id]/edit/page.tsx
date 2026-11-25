@@ -81,6 +81,11 @@ export default async function EditInvoicePage({
           template,
           locale,
           lines: initialLines,
+          invoiceDiscountType: invoice.invoiceDiscountType,
+          invoiceDiscountValue: invoice.invoiceDiscountValue.toString(),
+          earlyDiscountType: invoice.earlyDiscountType,
+          earlyDiscountValue: invoice.earlyDiscountValue.toString(),
+          earlyDiscountDays: invoice.earlyDiscountDays.toString(),
         }}
         customers={data.customers}
         products={data.products.map((p) => ({

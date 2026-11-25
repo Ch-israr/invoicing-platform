@@ -1,12 +1,13 @@
 import { toCsv } from "./csv";
 import type {
+  AgingRow,
   CustomerBalanceRow,
   OverdueRow,
   ProductRevenueRow,
   RevenueReport,
   VatReport,
 } from "@/server/services/report.service";
-import { toIsoDay } from "@/server/services/report.service";
+import { AGING_BUCKETS, toIsoDay } from "@/server/services/report.service";
 
 /** CSV exports for every report — money as plain 2dp numbers. */
 
@@ -37,6 +38,21 @@ export function overdueCsv(rows: OverdueRow[]): string {
   return toCsv(
     ["Invoice", "Customer", "Due date", "Days overdue", "Balance"],
     rows.map((r) => [
+      r.number,
+      r.customerName,
+      toIsoDay(r.dueDate),
+      r.daysOverdue,
+      money(r.balance),
+    ]),
+  );
+}
+
+export function agingCsv(rows: AgingRow[]): string {
+  const labelByKey = new Map(AGING_BUCKETS.map((b) => [b.key, b.label]));
+  return toCsv(
+    ["Bucket", "Invoice", "Customer", "Due date", "Days overdue", "Balance"],
+    rows.map((r) => [
+      labelByKey.get(r.bucket) ?? r.bucket,
       r.number,
       r.customerName,
       toIsoDay(r.dueDate),

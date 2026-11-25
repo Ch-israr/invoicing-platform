@@ -1,6 +1,7 @@
 import { describe, expect, it } from "vitest";
 import Decimal from "decimal.js";
 import {
+  bucketForDaysOverdue,
   buildCustomerBalanceRows,
   buildProductRevenueRows,
   computeVatNet,
@@ -153,5 +154,20 @@ describe("buildProductRevenueRows", () => {
     expect(rows[1].productId).toBe("p-gone");
     expect(rows[2].productId).toBeNull();
     expect(rows[2].sku).toBeNull();
+  });
+});
+
+describe("bucketForDaysOverdue", () => {
+  it("puts not-yet-due invoices in Current and splits the overdue ranges", () => {
+    expect(bucketForDaysOverdue(-5)).toBe("current");
+    expect(bucketForDaysOverdue(0)).toBe("current");
+    expect(bucketForDaysOverdue(1)).toBe("1-30");
+    expect(bucketForDaysOverdue(30)).toBe("1-30");
+    expect(bucketForDaysOverdue(31)).toBe("31-60");
+    expect(bucketForDaysOverdue(60)).toBe("31-60");
+    expect(bucketForDaysOverdue(61)).toBe("61-90");
+    expect(bucketForDaysOverdue(90)).toBe("61-90");
+    expect(bucketForDaysOverdue(91)).toBe("90+");
+    expect(bucketForDaysOverdue(400)).toBe("90+");
   });
 });

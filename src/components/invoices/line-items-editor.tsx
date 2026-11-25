@@ -95,6 +95,10 @@ export function isEmptyLine(line: LineState): boolean {
 export function computeLinePreview(
   lines: LineState[],
   taxRates: BuilderTaxRate[],
+  invoiceDiscount: Parameters<typeof calculateInvoice>[1] = {
+    type: "NONE",
+    value: "0",
+  },
 ): {
   totals: ReturnType<typeof calculateInvoice>["totals"];
   lineTotalsByKey: Map<string, string>;
@@ -112,6 +116,7 @@ export function computeLinePreview(
       taxRatePercent: l.taxRateId ? (rateById.get(l.taxRateId)?.rate ?? "0") : "0",
       taxInclusive: l.taxInclusive,
     })),
+    invoiceDiscount,
   );
   const lineTotalsByKey = new Map<string, string>();
   valid.forEach((l, i) => {
@@ -136,14 +141,33 @@ export function LineTotalsBox({
           <dt className="text-muted-foreground">Subtotal</dt>
           <dd className="tabular-nums">{formatMoney(totals.subtotal.toString(), currency)}</dd>
         </div>
-        <div className="flex justify-between">
-          <dt className="text-muted-foreground">Discount</dt>
-          <dd className="tabular-nums">−{formatMoney(totals.discountTotal.toString(), currency)}</dd>
-        </div>
-        <div className="flex justify-between">
-          <dt className="text-muted-foreground">Taxable amount</dt>
-          <dd className="tabular-nums">{formatMoney(totals.taxableAmount.toString(), currency)}</dd>
-        </div>
+        {/* Without an invoice discount this row renders exactly as
+            before (always shown); with one, a zero line discount is
+            hidden so the box doesn't show a −0.00 line. */}
+        {(totals.invoiceDiscountTotal.isZero() || !totals.lineDiscountTotal.isZero()) && (
+          <div className="flex justify-between">
+            <dt className="text-muted-foreground">Discount</dt>
+            <dd className="tabular-nums">−{formatMoney(totals.lineDiscountTotal.toString(), currency)}</dd>
+          </div>
+        )}
+        {!totals.invoiceDiscountTotal.isZero() && (
+          <>
+            <div className="flex justify-between">
+              <dt className="text-muted-foreground">Invoice discount</dt>
+              <dd className="tabular-nums">−{formatMoney(totals.invoiceDiscountTotal.toString(), currency)}</dd>
+            </div>
+            <div className="flex justify-between">
+              <dt className="text-muted-foreground">Subtotal after discount</dt>
+              <dd className="tabular-nums">{formatMoney(totals.taxableAmount.toString(), currency)}</dd>
+            </div>
+          </>
+        )}
+        {totals.invoiceDiscountTotal.isZero() && (
+          <div className="flex justify-between">
+            <dt className="text-muted-foreground">Taxable amount</dt>
+            <dd className="tabular-nums">{formatMoney(totals.taxableAmount.toString(), currency)}</dd>
+          </div>
+        )}
         <div className="flex justify-between">
           <dt className="text-muted-foreground">VAT</dt>
           <dd className="tabular-nums">{formatMoney(totals.vatAmount.toString(), currency)}</dd>

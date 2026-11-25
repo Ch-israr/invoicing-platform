@@ -20,6 +20,8 @@ export type PaymentRow = {
   method: string;
   reference: string | null;
   notes: string | null;
+  /** Early-payment discount granted on this payment (0 when none). */
+  earlyDiscountAmount?: string;
   refunds: Array<{ id: string; amount: string; reason: string | null; date: Date }>;
 };
 
@@ -137,6 +139,12 @@ export function PaymentList({
                     {METHOD_LABELS[p.method] ?? p.method} · {formatDate(p.date)}
                   </span>
                 </p>
+                {p.earlyDiscountAmount && Number(p.earlyDiscountAmount) > 0 ? (
+                  <p className="text-sm text-green-700 dark:text-green-400">
+                    Includes {formatMoney(p.earlyDiscountAmount, currency)} early-payment
+                    discount
+                  </p>
+                ) : null}
                 {p.reference ? (
                   <p className="text-sm text-muted-foreground">Ref: {p.reference}</p>
                 ) : null}

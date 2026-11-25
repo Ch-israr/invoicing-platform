@@ -14,8 +14,10 @@ import {
 import { logActivity } from "@/lib/activity";
 import { PAGE_SIZE, pageCount as calcPageCount } from "@/lib/pagination";
 import {
+  applyInvoiceLevelDiscount,
   calculateInvoice,
   calculateLine,
+  type InvoiceDiscountInput,
   type LineInput,
   type LineResult,
 } from "@/lib/money";
@@ -51,8 +53,8 @@ export function isInvoiceOverdue(
   return dueDate.getTime() < today.getTime();
 }
 
-export function daysOverdue(dueDate: Date): number {
-  const today = new Date();
+export function daysOverdue(dueDate: Date, now = new Date()): number {
+  const today = new Date(now);
   today.setUTCHours(0, 0, 0, 0);
   return Math.max(0, Math.floor((today.getTime() - dueDate.getTime()) / 86_400_000));
 }
@@ -116,17 +118,25 @@ export async function readInvoicePaymentState(
   const [payments, creditNotes] = await Promise.all([
     db.payment.findMany({
       where: { invoiceId },
-      select: { amount: true, refunds: { select: { amount: true } } },
+      select: {
+        amount: true,
+        earlyDiscountAmount: true,
+        refunds: { select: { amount: true } },
+      },
     }),
     db.creditNote.findMany({
       where: { invoiceId, status: "ISSUED" },
       select: { grandTotal: true },
     }),
   ]);
+  // Effective paid counts an early-payment discount granted on a
+  // payment, so paying (balance − discount) with the discount applied
+  // settles the invoice; deleting such a payment reverts it.
   const effectivePaid = payments.reduce(
     (acc, p) =>
       acc
         .add(new Decimal(p.amount.toString()))
+        .add(new Decimal(p.earlyDiscountAmount.toString()))
         .sub(
           p.refunds.reduce(
             (r, x) => r.add(new Decimal(x.amount.toString())),
@@ -200,6 +210,14 @@ export type InvoiceSnapshotPayload = {
     locale: string;
     subtotal: string;
     discountTotal: string;
+    /** Invoice-level discount actually applied (0 when none). */
+    invoiceDiscountType: string;
+    invoiceDiscountValue: string;
+    invoiceDiscountTotal: string;
+    /** Early-payment discount terms as issued (granted at payment time). */
+    earlyDiscountType: string;
+    earlyDiscountValue: string;
+    earlyDiscountDays: number;
     taxableAmount: string;
     vatAmount: string;
     grandTotal: string;
@@ -316,24 +334,43 @@ type ComputedInvoice = {
   totals: ReturnType<typeof calculateInvoice>["totals"];
 };
 
-/** Sum already-computed (rounded) line results into invoice totals. */
-function sumLineResults(lines: ResolvedLine[]) {
+/**
+ * Sum already-computed (rounded) line results into invoice totals,
+ * applying the invoice-level discount across the VAT rates (see
+ * lib/money.ts). discountTotal is the TOTAL discount — line
+ * discounts plus the invoice-level discount — so
+ * grandTotal = subtotal − discountTotal + vatAmount still holds.
+ */
+function sumLineResults(
+  lines: ResolvedLine[],
+  discount: InvoiceDiscountInput = { type: "NONE", value: "0" },
+) {
   const sum = (pick: (r: LineResult) => Decimal): Decimal =>
     lines.reduce((acc, l) => acc.add(pick(l.result)), new Decimal(0));
+  const subtotal = sum((r) => r.netAmount);
+  const lineDiscountTotal = sum((r) => r.discountAmount);
+  const applied = applyInvoiceLevelDiscount(
+    lines.map((l) => ({ taxRatePercent: l.rate, result: l.result })),
+    discount,
+  );
   return {
-    subtotal: sum((r) => r.netAmount),
-    discountTotal: sum((r) => r.discountAmount),
-    taxableAmount: sum((r) => r.taxableAmount),
-    vatAmount: sum((r) => r.vatAmount),
-    grandTotal: sum((r) => r.lineTotal),
+    subtotal,
+    discountTotal: lineDiscountTotal.add(applied.invoiceDiscountTotal),
+    lineDiscountTotal,
+    invoiceDiscountTotal: applied.invoiceDiscountTotal,
+    taxableAmount: applied.taxableAmount,
+    vatAmount: applied.vatAmount,
+    grandTotal: applied.grandTotal,
   };
 }
 
 /** Recompute every money figure from the validated input. Client totals are never used.
  * Only the line items are needed, so quotations (which have no due
- * date / template / locale) can use the same function. */
+ * date / template / locale) can use the same function. Quotations
+ * never carry an invoice discount — the parameter is optional and
+ * defaults to none. */
 export function computeInvoice(
-  input: { items: InvoiceItemInput[] },
+  input: { items: InvoiceItemInput[]; invoiceDiscount?: InvoiceDiscountInput },
   rates: TaxRate[],
   defaultVatRateId: string | null,
 ): ComputedInvoice | string {
@@ -351,7 +388,7 @@ export function computeInvoice(
     };
     resolved.push({ item, ...tax, result: calculateLine(lineInput) });
   }
-  return { lines: resolved, totals: sumLineResults(resolved) };
+  return { lines: resolved, totals: sumLineResults(resolved, input.invoiceDiscount) };
 }
 
 function toDate(value: string): Date {
@@ -383,6 +420,12 @@ export function invoiceCreateData(
     supplyDate: input.supplyDate ? toDate(input.supplyDate) : null,
     subtotal: computed.totals.subtotal,
     discountTotal: computed.totals.discountTotal,
+    invoiceDiscountType: input.invoiceDiscountType,
+    invoiceDiscountValue: new Prisma.Decimal(input.invoiceDiscountValue),
+    invoiceDiscountTotal: computed.totals.invoiceDiscountTotal,
+    earlyDiscountType: input.earlyDiscountType,
+    earlyDiscountValue: new Prisma.Decimal(input.earlyDiscountValue),
+    earlyDiscountDays: Number(input.earlyDiscountDays),
     taxableAmount: computed.totals.taxableAmount,
     vatAmount: computed.totals.vatAmount,
     grandTotal: computed.totals.grandTotal,
@@ -598,7 +641,17 @@ export async function createInvoice(
   const taxRates = await prisma.taxRate.findMany({
     where: scopeWhere(business.id),
   });
-  const computed = computeInvoice(input, taxRates, business.defaultVatRateId);
+  const computed = computeInvoice(
+    {
+      ...input,
+      invoiceDiscount: {
+        type: input.invoiceDiscountType,
+        value: input.invoiceDiscountValue,
+      },
+    },
+    taxRates,
+    business.defaultVatRateId,
+  );
   if (typeof computed === "string") return { ok: false, error: computed };
 
   const id = randomUUID();
@@ -640,7 +693,17 @@ export async function updateInvoice(
   const taxRates = await prisma.taxRate.findMany({
     where: scopeWhere(business.id),
   });
-  const computed = computeInvoice(input, taxRates, business.defaultVatRateId);
+  const computed = computeInvoice(
+    {
+      ...input,
+      invoiceDiscount: {
+        type: input.invoiceDiscountType,
+        value: input.invoiceDiscountValue,
+      },
+    },
+    taxRates,
+    business.defaultVatRateId,
+  );
   if (typeof computed === "string") return { ok: false, error: computed };
 
   await prisma.$transaction(async (tx) => {
@@ -654,6 +717,12 @@ export async function updateInvoice(
         supplyDate: input.supplyDate ? toDate(input.supplyDate) : null,
         subtotal: computed.totals.subtotal,
         discountTotal: computed.totals.discountTotal,
+        invoiceDiscountType: input.invoiceDiscountType,
+        invoiceDiscountValue: new Prisma.Decimal(input.invoiceDiscountValue),
+        invoiceDiscountTotal: computed.totals.invoiceDiscountTotal,
+        earlyDiscountType: input.earlyDiscountType,
+        earlyDiscountValue: new Prisma.Decimal(input.earlyDiscountValue),
+        earlyDiscountDays: Number(input.earlyDiscountDays),
         taxableAmount: computed.totals.taxableAmount,
         vatAmount: computed.totals.vatAmount,
         grandTotal: computed.totals.grandTotal,
@@ -761,6 +830,12 @@ function buildSnapshotPayload(
     locale: string;
     subtotal: Prisma.Decimal;
     discountTotal: Prisma.Decimal;
+    invoiceDiscountType: string;
+    invoiceDiscountValue: Prisma.Decimal;
+    invoiceDiscountTotal: Prisma.Decimal;
+    earlyDiscountType: string;
+    earlyDiscountValue: Prisma.Decimal;
+    earlyDiscountDays: number;
     taxableAmount: Prisma.Decimal;
     vatAmount: Prisma.Decimal;
     grandTotal: Prisma.Decimal;
@@ -785,6 +860,12 @@ function buildSnapshotPayload(
       locale: invoice.locale,
       subtotal: invoice.subtotal.toString(),
       discountTotal: invoice.discountTotal.toString(),
+      invoiceDiscountType: invoice.invoiceDiscountType,
+      invoiceDiscountValue: invoice.invoiceDiscountValue.toString(),
+      invoiceDiscountTotal: invoice.invoiceDiscountTotal.toString(),
+      earlyDiscountType: invoice.earlyDiscountType,
+      earlyDiscountValue: invoice.earlyDiscountValue.toString(),
+      earlyDiscountDays: invoice.earlyDiscountDays,
       taxableAmount: invoice.taxableAmount.toString(),
       vatAmount: invoice.vatAmount.toString(),
       grandTotal: invoice.grandTotal.toString(),
@@ -890,7 +971,12 @@ export async function issueInvoice(
       result,
     };
   });
-  const totals = sumLineResults(lines);
+  // Recompute with the discount fields stored on the draft, so the
+  // issued totals and snapshot carry the discount the draft had.
+  const totals = sumLineResults(lines, {
+    type: invoice.invoiceDiscountType,
+    value: invoice.invoiceDiscountValue,
+  });
 
   try {
     const number = await prisma.$transaction(async (tx) => {
@@ -915,6 +1001,7 @@ export async function issueInvoice(
           status: "ISSUED",
           subtotal: totals.subtotal,
           discountTotal: totals.discountTotal,
+          invoiceDiscountTotal: totals.invoiceDiscountTotal,
           taxableAmount: totals.taxableAmount,
           vatAmount: totals.vatAmount,
           grandTotal: totals.grandTotal,

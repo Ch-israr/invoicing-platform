@@ -452,6 +452,13 @@ export async function convertQuotationToInvoice(
     terms: quotation.terms ?? undefined,
     template,
     locale,
+    // Quotations never carry an invoice-level or early-payment
+    // discount — a converted invoice starts with none.
+    invoiceDiscountType: "NONE",
+    invoiceDiscountValue: "0",
+    earlyDiscountType: "NONE",
+    earlyDiscountValue: "0",
+    earlyDiscountDays: "0",
     items: quotation.items.map((item) => ({
       productId: item.productId ?? undefined,
       description: item.description,

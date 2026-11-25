@@ -244,6 +244,14 @@ export type OverdueRow = {
   balance: Decimal;
 };
 
+/** A date truncated to UTC midnight. Due-date comparisons use day
+ * granularity everywhere, so an invoice due today is never overdue. */
+export function startOfTodayUTC(now = new Date()): Date {
+  const d = new Date(now);
+  d.setUTCHours(0, 0, 0, 0);
+  return d;
+}
+
 export async function getOverdueReport(
   userId: string,
   now = new Date(),
@@ -253,7 +261,9 @@ export async function getOverdueReport(
     where: {
       businessId,
       status: { in: [...OPEN_STATUSES] },
-      dueDate: { lt: now },
+      // Day granularity, matching isInvoiceOverdue: an invoice due
+      // today is not overdue, even if "now" is later in the day.
+      dueDate: { lt: startOfTodayUTC(now) },
       balance: { gt: 0 },
     },
     orderBy: { dueDate: "asc" },
@@ -264,11 +274,110 @@ export async function getOverdueReport(
     number: inv.number,
     customerName: inv.customer.companyName ?? inv.customer.name,
     dueDate: inv.dueDate,
-    daysOverdue: daysOverdue(inv.dueDate),
+    daysOverdue: daysOverdue(inv.dueDate, now),
     balance: new Decimal(inv.balance.toString()),
   }));
   const totalBalance = rows.reduce((acc, r) => acc.add(r.balance), new Decimal(0));
   return { rows, totalBalance, count: rows.length };
+}
+
+// ---------------------------------------------------------------------------
+// A/R aging — open invoices bucketed by days overdue
+// ---------------------------------------------------------------------------
+
+/** A/R aging buckets, by whole days overdue (0 = not yet due). */
+export type AgingBucketKey = "current" | "1-30" | "31-60" | "61-90" | "90+";
+
+export const AGING_BUCKETS: Array<{ key: AgingBucketKey; label: string }> = [
+  { key: "current", label: "Current (not yet due)" },
+  { key: "1-30", label: "1–30 days" },
+  { key: "31-60", label: "31–60 days" },
+  { key: "61-90", label: "61–90 days" },
+  { key: "90+", label: "90+ days" },
+];
+
+/** Pure: which bucket a days-overdue count falls in. */
+export function bucketForDaysOverdue(days: number): AgingBucketKey {
+  if (days <= 0) return "current";
+  if (days <= 30) return "1-30";
+  if (days <= 60) return "31-60";
+  if (days <= 90) return "61-90";
+  return "90+";
+}
+
+export type AgingRow = {
+  invoiceId: string;
+  number: string;
+  customerName: string;
+  dueDate: Date;
+  daysOverdue: number;
+  balance: Decimal;
+  bucket: AgingBucketKey;
+};
+
+export type AgingBucketSummary = {
+  key: AgingBucketKey;
+  label: string;
+  count: number;
+  total: Decimal;
+};
+
+export type AgingReport = {
+  buckets: AgingBucketSummary[];
+  rows: AgingRow[];
+  /** Total outstanding across all buckets. */
+  totalOutstanding: Decimal;
+  /** Total in the overdue buckets (1–30 and older) — this must agree
+   * with getOverdueReport's totalBalance on the same data. */
+  overdueTotal: Decimal;
+  count: number;
+};
+
+/**
+ * Open invoices with a balance, bucketed by due date vs today.
+ * The overdue buckets use the same definition of outstanding balance
+ * as getOverdueReport, so the two reports agree.
+ */
+export async function getAgingReport(
+  userId: string,
+  now = new Date(),
+): Promise<AgingReport> {
+  const businessId = await businessIdFor(userId);
+  const invoices = await prisma.invoice.findMany({
+    where: {
+      businessId,
+      status: { in: [...OPEN_STATUSES] },
+      balance: { gt: 0 },
+    },
+    orderBy: { dueDate: "asc" },
+    include: { customer: { select: { name: true, companyName: true } } },
+  });
+  const rows: AgingRow[] = invoices.map((inv) => {
+    const days = daysOverdue(inv.dueDate, now);
+    return {
+      invoiceId: inv.id,
+      number: inv.number,
+      customerName: inv.customer.companyName ?? inv.customer.name,
+      dueDate: inv.dueDate,
+      daysOverdue: days,
+      balance: new Decimal(inv.balance.toString()),
+      bucket: bucketForDaysOverdue(days),
+    };
+  });
+  const buckets: AgingBucketSummary[] = AGING_BUCKETS.map(({ key, label }) => {
+    const inBucket = rows.filter((r) => r.bucket === key);
+    return {
+      key,
+      label,
+      count: inBucket.length,
+      total: inBucket.reduce((acc, r) => acc.add(r.balance), new Decimal(0)),
+    };
+  });
+  const totalOutstanding = rows.reduce((acc, r) => acc.add(r.balance), new Decimal(0));
+  const overdueTotal = rows
+    .filter((r) => r.bucket !== "current")
+    .reduce((acc, r) => acc.add(r.balance), new Decimal(0));
+  return { buckets, rows, totalOutstanding, overdueTotal, count: rows.length };
 }
 
 // ---------------------------------------------------------------------------

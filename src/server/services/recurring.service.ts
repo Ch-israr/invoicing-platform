@@ -36,6 +36,7 @@ import {
   firstValidationError,
   invoiceItemSchema,
   stripEmptyLineItems,
+  type InvoiceInput,
 } from "@/lib/validation/invoice";
 import type { ServiceResult } from "./invoice.service";
 
@@ -367,7 +368,7 @@ export async function runRecurring(opts: {
         const taxRates = await tx.taxRate.findMany({
           where: scopeWhere(business.id),
         });
-        const input = {
+        const input: InvoiceInput = {
           customerId: fresh.customerId,
           issueDate: runDate,
           dueDate,
@@ -376,6 +377,13 @@ export async function runRecurring(opts: {
           terms: parsed.terms,
           template: parsed.template,
           locale: parsed.locale,
+          // Recurring templates never carry an invoice-level or
+          // early-payment discount — generated invoices start with none.
+          invoiceDiscountType: "NONE",
+          invoiceDiscountValue: "0",
+          earlyDiscountType: "NONE",
+          earlyDiscountValue: "0",
+          earlyDiscountDays: "0",
           items: parsed.items,
         };
         const computed = computeInvoice(input, taxRates, business.defaultVatRateId);

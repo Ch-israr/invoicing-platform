@@ -348,6 +348,19 @@ model Invoice {
   grandTotal          Decimal       @default(0) @db.Decimal(19, 4)
   amountPaid          Decimal       @default(0) @db.Decimal(19, 4)
   balance             Decimal       @default(0) @db.Decimal(19, 4)
+  // Invoice-level discount (draft-time fields, locked once issued).
+  // discountTotal above is the TOTAL discount (line + invoice-level);
+  // invoiceDiscountTotal is the invoice-level portion actually applied.
+  invoiceDiscountType  DiscountType @default(NONE)
+  invoiceDiscountValue Decimal      @default(0) @db.Decimal(19, 4)
+  invoiceDiscountTotal Decimal      @default(0) @db.Decimal(19, 4)
+  // Early-payment discount (Skonto, draft-time fields, locked once
+  // issued). Never reduces the invoice total — it applies at payment
+  // time, when a payment is recorded within earlyDiscountDays of the
+  // issue date. The granted amount is stored on the Payment row.
+  earlyDiscountType  DiscountType @default(NONE)
+  earlyDiscountValue Decimal      @default(0) @db.Decimal(19, 4)
+  earlyDiscountDays  Int          @default(0)
   notes               String?       @db.Text
   terms               String?       @db.Text
   template            String        @default("classic")
@@ -437,6 +450,11 @@ model Payment {
   reference     String?
   notes         String?       @db.Text
   attachmentUrl String?
+  // Early-payment discount granted on this payment (0 when none).
+  // Counts toward the invoice's effective paid amount, so a payment
+  // of (balance − discount) with this set settles the invoice.
+  // Deleting the payment reverts the discount with it.
+  earlyDiscountAmount Decimal @default(0) @db.Decimal(19, 4)
   createdById   String?
   createdAt     DateTime      @default(now())
   updatedAt     DateTime      @updatedAt

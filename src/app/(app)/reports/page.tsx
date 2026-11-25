@@ -1,6 +1,6 @@
 import Link from "next/link";
 import { redirect } from "next/navigation";
-import { Banknote, Clock, Package, Percent, Users, type LucideIcon } from "lucide-react";
+import { Banknote, CalendarClock, Clock, Package, Percent, Users, type LucideIcon } from "lucide-react";
 import { auth } from "@/lib/auth";
 import { cn } from "@/lib/utils";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
@@ -32,6 +32,13 @@ const REPORTS: Array<{
     description: "Invoices past their due date with balances, worst first.",
     icon: Clock,
     chip: "bg-red-600/10 text-red-700 dark:text-red-400",
+  },
+  {
+    href: "/reports/aging",
+    title: "A/R aging",
+    description: "Open invoices grouped by how long they have been outstanding.",
+    icon: CalendarClock,
+    chip: "bg-rose-600/10 text-rose-700 dark:text-rose-400",
   },
   {
     href: "/reports/customers",

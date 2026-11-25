@@ -74,6 +74,13 @@ export type InvoiceBuilderValues = {
   template: "classic" | "modern" | "minimal";
   locale: "en" | "ar";
   lines: LineState[];
+  /** Invoice-level discount (invoice variant only). */
+  invoiceDiscountType?: "NONE" | "PERCENT" | "FIXED";
+  invoiceDiscountValue?: string;
+  /** Early-payment discount (invoice variant only). */
+  earlyDiscountType?: "NONE" | "PERCENT" | "FIXED";
+  earlyDiscountValue?: string;
+  earlyDiscountDays?: string;
 };
 
 function todayIso(): string {
@@ -146,10 +153,32 @@ export function InvoiceBuilder({
     initial?.lines && initial.lines.length > 0 ? initial.lines : [blankLine(defaultRateId)],
   );
 
+  // Invoice-level + early-payment discounts (invoice variant only;
+  // quotations never carry them). Draft-time fields, locked on issue.
+  const [invoiceDiscountType, setInvoiceDiscountType] = useState<
+    "NONE" | "PERCENT" | "FIXED"
+  >(initial?.invoiceDiscountType ?? "NONE");
+  const [invoiceDiscountValue, setInvoiceDiscountValue] = useState(
+    initial?.invoiceDiscountValue ?? "0",
+  );
+  const [earlyDiscountType, setEarlyDiscountType] = useState<
+    "NONE" | "PERCENT" | "FIXED"
+  >(initial?.earlyDiscountType ?? "NONE");
+  const [earlyDiscountValue, setEarlyDiscountValue] = useState(
+    initial?.earlyDiscountValue ?? "0",
+  );
+  const [earlyDiscountDays, setEarlyDiscountDays] = useState(
+    initial?.earlyDiscountDays ?? "10",
+  );
+
   // Live preview totals — display only; the server recalculates on save.
   const preview = useMemo(
-    () => computeLinePreview(lines, taxRates),
-    [lines, taxRates],
+    () =>
+      computeLinePreview(lines, taxRates, {
+        type: invoiceDiscountType,
+        value: invoiceDiscountValue || "0",
+      }),
+    [lines, taxRates, invoiceDiscountType, invoiceDiscountValue],
   );
 
   const previewData: InvoicePreviewData = useMemo(() => {
@@ -224,6 +253,8 @@ export function InvoiceBuilder({
       totals: {
         subtotal: preview.totals.subtotal.toString(),
         discountTotal: preview.totals.discountTotal.toString(),
+        lineDiscountTotal: preview.totals.lineDiscountTotal.toString(),
+        invoiceDiscountTotal: preview.totals.invoiceDiscountTotal.toString(),
         taxableAmount: preview.totals.taxableAmount.toString(),
         vatAmount: preview.totals.vatAmount.toString(),
         grandTotal: preview.totals.grandTotal.toString(),
@@ -414,6 +445,96 @@ export function InvoiceBuilder({
           lineTotalsByKey={preview.lineTotalsByKey}
           highlightKey={errorLineKey}
         />
+
+        {isQuotation ? null : (
+          <Card>
+            <CardHeader>
+              <CardTitle>Discounts</CardTitle>
+            </CardHeader>
+            <CardContent className="space-y-4">
+              <Field label="Invoice discount" htmlFor="invoiceDiscountType" hint="Applied to the whole invoice before tax, after line discounts.">
+                <div className="flex gap-2">
+                  <Select
+                    id="invoiceDiscountType"
+                    name="invoiceDiscountType"
+                    value={invoiceDiscountType}
+                    onChange={(e) => {
+                      setInvoiceDiscountType(
+                        e.target.value as "NONE" | "PERCENT" | "FIXED",
+                      );
+                      setInvoiceDiscountValue("0");
+                    }}
+                  >
+                    <option value="NONE">None</option>
+                    <option value="PERCENT">%</option>
+                    <option value="FIXED">Fixed</option>
+                  </Select>
+                  {invoiceDiscountType !== "NONE" ? (
+                    <Input
+                      id="invoiceDiscountValue"
+                      name="invoiceDiscountValue"
+                      aria-label="Invoice discount value"
+                      inputMode="decimal"
+                      value={invoiceDiscountValue}
+                      onChange={(e) => setInvoiceDiscountValue(e.target.value)}
+                      placeholder={invoiceDiscountType === "PERCENT" ? "10" : "25.00"}
+                    />
+                  ) : null}
+                </div>
+              </Field>
+              <Field
+                label="Early-payment discount"
+                htmlFor="earlyDiscountType"
+                hint="Offered when recording a payment, only within the window from the issue date. It never reduces the invoice total."
+              >
+                <div className="flex flex-wrap items-center gap-2">
+                  <Select
+                    id="earlyDiscountType"
+                    name="earlyDiscountType"
+                    value={earlyDiscountType}
+                    onChange={(e) => {
+                      setEarlyDiscountType(
+                        e.target.value as "NONE" | "PERCENT" | "FIXED",
+                      );
+                      setEarlyDiscountValue("0");
+                    }}
+                  >
+                    <option value="NONE">None</option>
+                    <option value="PERCENT">%</option>
+                    <option value="FIXED">Fixed</option>
+                  </Select>
+                  {earlyDiscountType !== "NONE" ? (
+                    <>
+                      <Input
+                        id="earlyDiscountValue"
+                        name="earlyDiscountValue"
+                        aria-label="Early-payment discount value"
+                        inputMode="decimal"
+                        value={earlyDiscountValue}
+                        onChange={(e) => setEarlyDiscountValue(e.target.value)}
+                        placeholder={earlyDiscountType === "PERCENT" ? "2" : "25.00"}
+                        className="max-w-32"
+                      />
+                      <span className="text-sm text-muted-foreground">if paid within</span>
+                      <Input
+                        id="earlyDiscountDays"
+                        name="earlyDiscountDays"
+                        aria-label="Early-payment discount days"
+                        type="number"
+                        min={0}
+                        step={1}
+                        value={earlyDiscountDays}
+                        onChange={(e) => setEarlyDiscountDays(e.target.value)}
+                        className="max-w-24"
+                      />
+                      <span className="text-sm text-muted-foreground">days</span>
+                    </>
+                  ) : null}
+                </div>
+              </Field>
+            </CardContent>
+          </Card>
+        )}
 
         <LineTotalsBox totals={preview.totals} currency={business.currency} />
 

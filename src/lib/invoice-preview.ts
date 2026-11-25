@@ -70,6 +70,10 @@ export type InvoicePreviewData = {
   totals: {
     subtotal: string;
     discountTotal: string;
+    /** Line discounts only (falls back to discountTotal when unset). */
+    lineDiscountTotal?: string;
+    /** Invoice-level discount actually applied (0 when none). */
+    invoiceDiscountTotal?: string;
     taxableAmount: string;
     vatAmount: string;
     grandTotal: string;
@@ -121,6 +125,12 @@ export function previewDataFromSnapshot(
     totals: {
       subtotal: inv.subtotal,
       discountTotal: inv.discountTotal,
+      // Snapshots taken before the invoice-discount feature lack the
+      // field — treat it as 0, so old issued invoices render unchanged.
+      lineDiscountTotal: new Decimal(inv.discountTotal)
+        .sub(new Decimal(inv.invoiceDiscountTotal ?? "0"))
+        .toString(),
+      invoiceDiscountTotal: inv.invoiceDiscountTotal ?? "0",
       taxableAmount: inv.taxableAmount,
       vatAmount: inv.vatAmount,
       grandTotal: inv.grandTotal,
@@ -143,6 +153,7 @@ export type LiveInvoice = {
   locale: string;
   subtotal: Prisma.Decimal;
   discountTotal: Prisma.Decimal;
+  invoiceDiscountTotal: Prisma.Decimal;
   taxableAmount: Prisma.Decimal;
   vatAmount: Prisma.Decimal;
   grandTotal: Prisma.Decimal;
@@ -295,6 +306,9 @@ export function previewDataFromQuotation(
     totals: {
       subtotal: dec(quotation.subtotal),
       discountTotal: dec(quotation.discountTotal),
+      // Quotations have no invoice-level discount.
+      lineDiscountTotal: dec(quotation.discountTotal),
+      invoiceDiscountTotal: "0",
       taxableAmount: dec(quotation.taxableAmount),
       vatAmount: dec(quotation.vatAmount),
       grandTotal: dec(quotation.grandTotal),
@@ -381,6 +395,10 @@ export function previewDataFromLive(
     totals: {
       subtotal: dec(invoice.subtotal),
       discountTotal: dec(invoice.discountTotal),
+      lineDiscountTotal: new Decimal(invoice.discountTotal.toString())
+        .sub(new Decimal(invoice.invoiceDiscountTotal.toString()))
+        .toString(),
+      invoiceDiscountTotal: dec(invoice.invoiceDiscountTotal),
       taxableAmount: dec(invoice.taxableAmount),
       vatAmount: dec(invoice.vatAmount),
       grandTotal: dec(invoice.grandTotal),
