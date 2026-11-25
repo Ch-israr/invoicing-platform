@@ -12,8 +12,8 @@ export default async function BusinessSettingsPage() {
   const profile = await getBusinessProfile(session.user.id);
   if (!profile) {
     return (
-      <div className="space-y-6">
-        <h1 className="text-2xl font-bold">Business Profile</h1>
+      <div className="-m-4 min-h-[calc(100dvh-4rem)] space-y-6 bg-muted/60 p-4 md:-m-6 md:p-6">
+        <h1 className="text-2xl font-bold tracking-tight">Business Profile</h1>
         <p className="text-sm text-muted-foreground">
           Your account has no business workspace yet.
         </p>
@@ -25,9 +25,10 @@ export default async function BusinessSettingsPage() {
   const readOnly = !canManageBusiness(profile.business.membership.role);
 
   return (
-    <div className="space-y-6">
+    <div className="-m-4 min-h-[calc(100dvh-4rem)] space-y-6 bg-muted/60 p-4 md:-m-6 md:p-6">
+      <div className="mx-auto max-w-3xl space-y-6">
       <div>
-        <h1 className="text-2xl font-bold">Business Profile</h1>
+        <h1 className="text-2xl font-bold tracking-tight">Business Profile</h1>
         <p className="text-sm text-muted-foreground">
           Company details, tax and numbering, bank details and preferences.
           These appear on your invoices and quotations.
@@ -77,6 +78,7 @@ export default async function BusinessSettingsPage() {
         action={updateBusinessAction}
         readOnly={readOnly}
       />
+      </div>
     </div>
   );
 }

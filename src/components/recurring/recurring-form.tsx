@@ -6,6 +6,7 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
 import { Select } from "@/components/ui/select";
+import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Field, FormError, SubmitButton } from "@/components/shared/form-fields";
 import {
   blankLine,
@@ -110,8 +111,12 @@ export function RecurringForm({
         if the run is triggered twice.
       </p>
 
-      <div className="grid gap-6 lg:grid-cols-2">
-        <div className="space-y-4">
+      <div className="grid gap-6 lg:grid-cols-2 [&>*]:min-w-0">
+        <Card>
+          <CardHeader>
+            <CardTitle>Schedule</CardTitle>
+          </CardHeader>
+          <CardContent className="space-y-4">
           <Field label="Customer" htmlFor="customerId">
             <Select
               id="customerId"
@@ -190,9 +195,14 @@ export function RecurringForm({
             by hand. When on, the invoice is issued, its PDF generated,
             and the email sent to the customer.
           </p>
-        </div>
+          </CardContent>
+        </Card>
 
-        <div className="space-y-4">
+        <Card>
+          <CardHeader>
+            <CardTitle>Document</CardTitle>
+          </CardHeader>
+          <CardContent className="space-y-4">
           <Field label="Template" htmlFor="template">
             <Select
               id="template"
@@ -236,7 +246,8 @@ export function RecurringForm({
               onChange={(e) => setTerms(e.target.value)}
             />
           </Field>
-        </div>
+          </CardContent>
+        </Card>
       </div>
 
       <LineItemsEditor
@@ -249,7 +260,7 @@ export function RecurringForm({
       />
       <LineTotalsBox totals={preview.totals} currency={business.currency} />
 
-      <div className="flex gap-2">
+      <div className="sticky bottom-4 z-10 flex gap-2 rounded-lg border bg-card p-3 shadow-lg">
         <SubmitButton>Create schedule</SubmitButton>
         <Button variant="outline" asChild>
           <Link href="/recurring">Cancel</Link>

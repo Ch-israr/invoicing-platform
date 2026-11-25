@@ -22,9 +22,10 @@ export default async function ExpenseCategoriesPage({
   const categories = await listExpenseCategories(session.user.id);
 
   return (
-    <div className="max-w-2xl space-y-6">
+    <div className="-m-4 min-h-[calc(100dvh-4rem)] space-y-6 bg-muted/60 p-4 md:-m-6 md:p-6">
+      <div className="max-w-2xl space-y-6">
       <div>
-        <h1 className="text-2xl font-bold">Expense categories</h1>
+        <h1 className="text-2xl font-bold tracking-tight">Expense categories</h1>
         <p className="text-sm text-muted-foreground">
           Categories are per business. Deleting one unlinks its expenses —
           the expenses themselves stay.
@@ -73,6 +74,7 @@ export default async function ExpenseCategoriesPage({
           )}
         </CardContent>
       </Card>
+      </div>
     </div>
   );
 }

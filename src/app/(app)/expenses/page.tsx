@@ -55,10 +55,10 @@ export default async function ExpensesPage({
   };
 
   return (
-    <div className="space-y-6">
+    <div className="-m-4 min-h-[calc(100dvh-4rem)] space-y-6 bg-muted/60 p-4 md:-m-6 md:p-6">
       <div className="flex flex-wrap items-start justify-between gap-4">
         <div>
-          <h1 className="text-2xl font-bold">Expenses</h1>
+          <h1 className="text-2xl font-bold tracking-tight">Expenses</h1>
           <p className="text-sm text-muted-foreground">
             Business spending, with categories and receipts.
           </p>
@@ -79,41 +79,45 @@ export default async function ExpensesPage({
         </p>
       ) : null}
 
-      <div className="grid grid-cols-2 gap-4 md:grid-cols-3">
+      <div className="grid grid-cols-2 gap-4 md:grid-cols-3 [&>*]:min-w-0">
         <Card>
           <CardContent className="p-4">
             <p className="text-xs text-muted-foreground">Total (filtered)</p>
-            <p className="mt-1 text-lg font-semibold">
+            <p className="mt-1 text-2xl font-bold tracking-tight tabular-nums">
               {formatMoney(totals.amount.toString(), currency)}
             </p>
+            <p className="text-xs text-muted-foreground">In the current filter</p>
           </CardContent>
         </Card>
         <Card>
           <CardContent className="p-4">
             <p className="text-xs text-muted-foreground">VAT in total</p>
-            <p className="mt-1 text-lg font-semibold">
+            <p className="mt-1 text-2xl font-bold tracking-tight tabular-nums">
               {formatMoney(totals.vatAmount.toString(), currency)}
             </p>
+            <p className="text-xs text-muted-foreground">Input VAT on these expenses</p>
           </CardContent>
         </Card>
         <Card>
           <CardContent className="p-4">
             <p className="text-xs text-muted-foreground">Expenses</p>
-            <p className="mt-1 text-lg font-semibold">{total}</p>
+            <p className="mt-1 text-2xl font-bold tracking-tight tabular-nums">{total}</p>
+            <p className="text-xs text-muted-foreground">Matching the filter</p>
           </CardContent>
         </Card>
       </div>
 
-      <form className="flex flex-wrap gap-2" method="get">
+      <form className="flex flex-wrap items-center gap-2" method="get">
         <Input
           name="q"
           defaultValue={q}
           placeholder="Search title, vendor…"
-          className="w-56"
+          className="min-w-48 flex-1 sm:max-w-xs"
+          aria-label="Search expenses"
         />
-        <Input name="from" type="date" defaultValue={from} aria-label="From date" />
-        <Input name="to" type="date" defaultValue={to} aria-label="To date" />
-        <Select name="categoryId" defaultValue={categoryId}>
+        <Input name="from" type="date" defaultValue={from} aria-label="From date" className="w-40" />
+        <Input name="to" type="date" defaultValue={to} aria-label="To date" className="w-40" />
+        <Select name="categoryId" defaultValue={categoryId} aria-label="Filter by category" className="w-40">
           <option value="">All categories</option>
           {categories.map((c) => (
             <option key={c.id} value={c.id}>
@@ -134,10 +138,15 @@ export default async function ExpensesPage({
       <Card>
         <CardContent className="p-0">
           {expenses.length === 0 ? (
-            <p className="p-6 text-sm text-muted-foreground">
-              No expenses match. Add your first expense to start tracking
-              spending.
-            </p>
+            <div className="p-6">
+              <p className="text-sm text-muted-foreground">
+                No expenses match. Add your first expense to start tracking
+                spending.
+              </p>
+              <Button asChild size="sm" className="mt-3">
+                <Link href="/expenses/new">Create your first expense</Link>
+              </Button>
+            </div>
           ) : (
             <ul className="divide-y">
               {expenses.map((e) => (
@@ -164,7 +173,7 @@ export default async function ExpensesPage({
                       {e.receiptUrl ? " · Receipt attached" : ""}
                     </p>
                   </Link>
-                  <p className="font-medium">{formatMoney(e.amount.toString(), currency)}</p>
+                  <p className="font-semibold tabular-nums">{formatMoney(e.amount.toString(), currency)}</p>
                 </li>
               ))}
             </ul>

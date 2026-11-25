@@ -30,6 +30,25 @@ import {
   voidInvoiceAction,
 } from "../actions";
 
+function formatDate(date: Date): string {
+  return new Intl.DateTimeFormat("en-GB", {
+    day: "2-digit",
+    month: "short",
+    year: "numeric",
+    timeZone: "UTC",
+  }).format(date);
+}
+
+function emailStatusLabel(status: string): string {
+  return status === "SENT"
+    ? "Sent"
+    : status === "FAILED"
+      ? "Failed"
+      : status === "QUEUED"
+        ? "Queued"
+        : status;
+}
+
 export default async function InvoiceDetailPage({
   params,
   searchParams,
@@ -256,9 +275,9 @@ export default async function InvoiceDetailPage({
                         <div>
                           <p className="font-medium">{e.subject}</p>
                           <p className="text-sm text-muted-foreground">
-                            To {e.to} · {e.status}
+                            To {e.to} · {emailStatusLabel(e.status)}
                             {e.attempts > 0 ? ` · ${e.attempts} attempt${e.attempts === 1 ? "" : "s"}` : ""}
-                            {e.sentAt ? ` · sent ${e.sentAt.toLocaleString()}` : ""}
+                            {e.sentAt ? ` · sent ${formatDate(e.sentAt)}` : ""}
                           </p>
                           {e.error ? (
                             <p className="text-sm text-destructive">{e.error}</p>

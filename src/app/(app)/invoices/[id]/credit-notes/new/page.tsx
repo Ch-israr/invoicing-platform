@@ -31,9 +31,10 @@ export default async function NewCreditNotePage({
   }
 
   return (
-    <div className="max-w-5xl space-y-6">
+    <div className="-m-4 min-h-[calc(100dvh-4rem)] space-y-6 bg-muted/60 p-4 md:-m-6 md:p-6">
+      <div className="mx-auto max-w-5xl space-y-6">
       <div>
-        <h1 className="text-2xl font-bold">New credit note</h1>
+        <h1 className="text-2xl font-bold tracking-tight">New credit note</h1>
         <p className="text-sm text-muted-foreground">
           Credit part of invoice {invoice.number} back to{" "}
           {invoice.customer.companyName ?? invoice.customer.name}. The
@@ -47,6 +48,7 @@ export default async function NewCreditNotePage({
         balance={invoice.balance.toString()}
         lines={lines}
       />
+      </div>
     </div>
   );
 }

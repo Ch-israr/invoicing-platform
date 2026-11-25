@@ -5,6 +5,7 @@ import Decimal from "decimal.js";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
+import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Field, FormError, SubmitButton } from "@/components/shared/form-fields";
 import { createCreditNoteAction } from "@/app/(app)/invoices/actions";
 import { calculateLine } from "@/lib/money";
@@ -126,8 +127,11 @@ export function CreditNoteForm({
         />
       </Field>
 
-      <div className="space-y-3">
-        <h2 className="text-lg font-semibold">Lines to credit</h2>
+      <Card>
+        <CardHeader>
+          <CardTitle>Lines to credit</CardTitle>
+        </CardHeader>
+        <CardContent className="space-y-3">
         {lines.map((l) => {
           const st = lineState[l.id];
           const remaining = new Decimal(l.remainingQty);
@@ -175,7 +179,8 @@ export function CreditNoteForm({
             </div>
           );
         })}
-      </div>
+        </CardContent>
+      </Card>
 
       <div className="flex justify-end">
         <dl className="w-full max-w-xs space-y-1.5 rounded-lg border bg-card p-4 text-sm">
@@ -202,7 +207,7 @@ export function CreditNoteForm({
         </dl>
       </div>
 
-      <div className="flex gap-2">
+      <div className="sticky bottom-4 z-10 flex gap-2 rounded-lg border bg-card p-3 shadow-lg">
         <SubmitButton>Issue credit note</SubmitButton>
         <Button variant="outline" asChild>
           <a href={`/invoices/${invoiceId}`}>Cancel</a>

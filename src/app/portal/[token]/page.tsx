@@ -26,6 +26,15 @@ import {
   rejectQuotationPortalAction,
 } from "./actions";
 
+function formatDate(date: Date): string {
+  return new Intl.DateTimeFormat("en-GB", {
+    day: "2-digit",
+    month: "short",
+    year: "numeric",
+    timeZone: "UTC",
+  }).format(date);
+}
+
 async function clientIp(): Promise<string> {
   const h = await headers();
   const forwarded = h.get("x-forwarded-for");
@@ -41,30 +50,34 @@ function PortalShell({
   children: React.ReactNode;
 }) {
   return (
-    <div className="mx-auto max-w-5xl space-y-6 p-4 md:p-6">
-      <header className="border-b pb-4">
-        <p className="text-sm font-semibold">{businessName}</p>
-        <p className="text-xs text-muted-foreground">Customer portal</p>
-      </header>
-      {children}
+    <div className="min-h-dvh bg-muted/60">
+      <div className="mx-auto max-w-5xl space-y-6 p-4 md:p-6">
+        <header className="border-b pb-4">
+          <p className="text-sm font-semibold">{businessName}</p>
+          <p className="text-xs text-muted-foreground">Customer portal</p>
+        </header>
+        {children}
+      </div>
     </div>
   );
 }
 
 function InvalidLink() {
   return (
-    <div className="mx-auto max-w-5xl space-y-6 p-4 md:p-6">
-      <Card>
-        <CardHeader>
-          <CardTitle>This link is no longer valid</CardTitle>
-        </CardHeader>
-        <CardContent>
-          <p className="text-sm text-muted-foreground">
-            The link may have expired or been revoked. Please ask the
-            business to send you a fresh link.
-          </p>
-        </CardContent>
-      </Card>
+    <div className="min-h-dvh bg-muted/60">
+      <div className="mx-auto max-w-5xl space-y-6 p-4 md:p-6">
+        <Card>
+          <CardHeader>
+            <CardTitle>This link is no longer valid</CardTitle>
+          </CardHeader>
+          <CardContent>
+            <p className="text-sm text-muted-foreground">
+              The link may have expired or been revoked. Please ask the
+              business to send you a fresh link.
+            </p>
+          </CardContent>
+        </Card>
+      </div>
     </div>
   );
 }
@@ -101,7 +114,7 @@ async function InvoiceView({
       ) : null}
       <div className="flex flex-wrap items-start justify-between gap-4">
         <div>
-          <h1 className="text-2xl font-bold">Invoice {invoice.number}</h1>
+          <h1 className="text-2xl font-bold tracking-tight">Invoice {invoice.number}</h1>
           <p className="mt-1 flex flex-wrap items-center gap-2 text-sm text-muted-foreground">
             <InvoiceStatusBadge status={invoice.status} />
             <span>{invoice.customer.companyName ?? invoice.customer.name}</span>
@@ -113,7 +126,7 @@ async function InvoiceView({
           </Link>
         </Button>
       </div>
-      <div className="grid grid-cols-2 gap-4 md:grid-cols-3">
+      <div className="grid grid-cols-2 gap-4 md:grid-cols-3 [&>*]:min-w-0">
         {[
           { label: "Grand total", value: formatMoney(invoice.grandTotal.toString(), currency) },
           { label: "Amount paid", value: formatMoney(invoice.amountPaid.toString(), currency) },
@@ -122,7 +135,7 @@ async function InvoiceView({
           <Card key={s.label}>
             <CardContent className="p-4">
               <p className="text-xs text-muted-foreground">{s.label}</p>
-              <p className="mt-1 text-lg font-semibold">{s.value}</p>
+              <p className="mt-1 text-2xl font-bold tracking-tight tabular-nums">{s.value}</p>
             </CardContent>
           </Card>
         ))}
@@ -175,7 +188,7 @@ async function QuotationView({
       ) : null}
       <div className="flex flex-wrap items-start justify-between gap-4">
         <div>
-          <h1 className="text-2xl font-bold">Quotation {quotation.number}</h1>
+          <h1 className="text-2xl font-bold tracking-tight">Quotation {quotation.number}</h1>
           <p className="mt-1 flex flex-wrap items-center gap-2 text-sm text-muted-foreground">
             <InvoiceStatusBadge status={quotation.status} />
             <span>{quotation.customer.companyName ?? quotation.customer.name}</span>
@@ -240,7 +253,7 @@ async function CustomerDashboard({
   return (
     <PortalShell businessName={business.name}>
       <div>
-        <h1 className="text-2xl font-bold">
+        <h1 className="text-2xl font-bold tracking-tight">
           {customer.companyName ?? customer.name}
         </h1>
         <p className="text-sm text-muted-foreground">
@@ -260,14 +273,17 @@ async function CustomerDashboard({
                 <li key={inv.id} className="flex flex-wrap items-center justify-between gap-2 py-3 first:pt-0 last:pb-0">
                   <Link
                     href={`/portal/${token}/invoice/${inv.id}`}
-                    className="hover:underline"
+                    className="min-w-0 hover:underline"
                   >
-                    <p className="font-medium">{inv.number}</p>
+                    <p className="flex flex-wrap items-center gap-2 font-medium">
+                      {inv.number}
+                      <InvoiceStatusBadge status={inv.status} />
+                    </p>
                     <p className="text-sm text-muted-foreground">
-                      {inv.status} · due {inv.dueDate.toISOString().slice(0, 10)}
+                      Due {formatDate(inv.dueDate)}
                     </p>
                   </Link>
-                  <p className="font-medium">
+                  <p className="font-semibold tabular-nums">
                     {formatMoney(inv.balance.toString(), business.currency)}{" "}
                     <span className="text-sm font-normal text-muted-foreground">
                       due of {formatMoney(inv.grandTotal.toString(), business.currency)}
@@ -292,14 +308,17 @@ async function CustomerDashboard({
                 <li key={q.id} className="flex flex-wrap items-center justify-between gap-2 py-3 first:pt-0 last:pb-0">
                   <Link
                     href={`/portal/${token}/quotation/${q.id}`}
-                    className="hover:underline"
+                    className="min-w-0 hover:underline"
                   >
-                    <p className="font-medium">{q.number}</p>
+                    <p className="flex flex-wrap items-center gap-2 font-medium">
+                      {q.number}
+                      <InvoiceStatusBadge status={q.status} />
+                    </p>
                     <p className="text-sm text-muted-foreground">
-                      {q.status} · expires {q.expiryDate.toISOString().slice(0, 10)}
+                      Expires {formatDate(q.expiryDate)}
                     </p>
                   </Link>
-                  <p className="font-medium">
+                  <p className="font-semibold tabular-nums">
                     {formatMoney(q.grandTotal.toString(), business.currency)}
                   </p>
                 </li>

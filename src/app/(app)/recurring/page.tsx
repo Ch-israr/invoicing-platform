@@ -3,6 +3,7 @@ import Link from "next/link";
 import { auth } from "@/lib/auth";
 import { parsePage } from "@/lib/pagination";
 import { listRecurring } from "@/server/services/recurring.service";
+import { cn } from "@/lib/utils";
 import { Button } from "@/components/ui/button";
 import { Select } from "@/components/ui/select";
 import { Card, CardContent } from "@/components/ui/card";
@@ -10,6 +11,23 @@ import { Pagination } from "@/components/shared/pagination";
 import { runDueSchedulesAction } from "./actions";
 
 const STATUSES = ["ACTIVE", "PAUSED", "CANCELLED"] as const;
+
+function RecurringStatusPill({ status }: { status: string }) {
+  return (
+    <span
+      className={cn(
+        "inline-flex shrink-0 items-center rounded-full px-2 py-0.5 text-xs font-medium",
+        status === "ACTIVE"
+          ? "bg-green-600/10 text-green-700 dark:text-green-400"
+          : status === "PAUSED"
+            ? "bg-amber-600/10 text-amber-700 dark:text-amber-400"
+            : "bg-slate-500/10 text-slate-600 dark:text-slate-400",
+      )}
+    >
+      {status === "ACTIVE" ? "Active" : status === "PAUSED" ? "Paused" : "Cancelled"}
+    </span>
+  );
+}
 
 const FREQUENCY_LABELS: Record<string, string> = {
   WEEKLY: "Weekly",
@@ -65,10 +83,10 @@ export default async function RecurringPage({
   };
 
   return (
-    <div className="space-y-6">
+    <div className="-m-4 min-h-[calc(100dvh-4rem)] space-y-6 bg-muted/60 p-4 md:-m-6 md:p-6">
       <div className="flex flex-wrap items-start justify-between gap-4">
         <div>
-          <h1 className="text-2xl font-bold">Recurring invoices</h1>
+          <h1 className="text-2xl font-bold tracking-tight">Recurring invoices</h1>
           <p className="text-sm text-muted-foreground">
             Schedules that create invoices on a repeat. There is no
             background worker yet — due schedules run from the button
@@ -93,8 +111,8 @@ export default async function RecurringPage({
         </p>
       ) : null}
 
-      <form className="flex flex-wrap gap-2" method="get">
-        <Select name="status" defaultValue={status ?? ""}>
+      <form className="flex flex-wrap items-center gap-2" method="get">
+        <Select name="status" defaultValue={status ?? ""} aria-label="Filter by status" className="w-40">
           <option value="">All statuses</option>
           {STATUSES.map((s) => (
             <option key={s} value={s}>
@@ -115,11 +133,16 @@ export default async function RecurringPage({
       <Card>
         <CardContent className="p-0">
           {schedules.length === 0 ? (
-            <p className="p-6 text-sm text-muted-foreground">
-              No schedules yet. Create one to invoice a customer on a
-              repeat — weekly, monthly, quarterly, yearly, or a custom
-              interval.
-            </p>
+            <div className="p-6">
+              <p className="text-sm text-muted-foreground">
+                No schedules yet. Create one to invoice a customer on a
+                repeat — weekly, monthly, quarterly, yearly, or a custom
+                interval.
+              </p>
+              <Button asChild size="sm" className="mt-3">
+                <Link href="/recurring/new">Create your first schedule</Link>
+              </Button>
+            </div>
           ) : (
             <ul className="divide-y">
               {schedules.map((s) => {
@@ -146,11 +169,12 @@ export default async function RecurringPage({
                           ? ended
                             ? "Ended"
                             : `Next run ${formatDate(s.nextRunAt)}`
-                          : s.status.charAt(0) + s.status.slice(1).toLowerCase()}
+                          : ""}
                         {s.lastRunAt ? ` · last run ${formatDate(s.lastRunAt)}` : ""}
                         {` · ${s._count.generated} invoice${s._count.generated === 1 ? "" : "s"} generated`}
                       </p>
                     </Link>
+                    <RecurringStatusPill status={s.status} />
                   </li>
                 );
               })}

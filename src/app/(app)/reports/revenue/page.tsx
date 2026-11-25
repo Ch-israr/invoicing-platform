@@ -12,6 +12,15 @@ import { DateRangeFilter } from "@/components/reports/date-filter";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 
+function formatDate(date: Date): string {
+  return new Intl.DateTimeFormat("en-GB", {
+    day: "2-digit",
+    month: "short",
+    year: "numeric",
+    timeZone: "UTC",
+  }).format(date);
+}
+
 export default async function RevenueReportPage({
   searchParams,
 }: {
@@ -40,12 +49,12 @@ export default async function RevenueReportPage({
   ];
 
   return (
-    <div className="space-y-6">
+    <div className="-m-4 min-h-[calc(100dvh-4rem)] space-y-6 bg-muted/60 p-4 md:-m-6 md:p-6">
       <div className="flex flex-wrap items-start justify-between gap-4">
         <div>
-          <h1 className="text-2xl font-bold">Revenue report</h1>
+          <h1 className="text-2xl font-bold tracking-tight">Revenue report</h1>
           <p className="text-sm text-muted-foreground">
-            {toIsoDay(range.from)} → {toIsoDay(range.to)} · Invoiced is the
+            {formatDate(range.from)} → {formatDate(range.to)} · Invoiced is the
             sum of issued invoices; paid is the sum of payments received.
           </p>
         </div>
@@ -63,12 +72,12 @@ export default async function RevenueReportPage({
 
       <DateRangeFilter from={toIsoDay(range.from)} to={toIsoDay(range.to)} />
 
-      <div className="grid grid-cols-2 gap-4 lg:grid-cols-4">
+      <div className="grid grid-cols-2 gap-4 lg:grid-cols-4 [&>*]:min-w-0">
         {totals.map((t) => (
           <Card key={t.label}>
             <CardContent className="p-4">
               <p className="text-xs text-muted-foreground">{t.label}</p>
-              <p className="mt-1 text-lg font-semibold">
+              <p className="mt-1 text-2xl font-bold tracking-tight tabular-nums">
                 {formatMoney(t.value.toString(), currency)}
               </p>
               <p className="text-xs text-muted-foreground">{t.hint}</p>
@@ -87,6 +96,7 @@ export default async function RevenueReportPage({
               Nothing invoiced or paid in this range.
             </p>
           ) : (
+            <div className="overflow-x-auto">
             <table className="w-full text-sm">
               <thead>
                 <tr className="border-b text-left text-muted-foreground">
@@ -99,16 +109,17 @@ export default async function RevenueReportPage({
                 {report.monthly.map((m) => (
                   <tr key={m.month} className="border-b last:border-0">
                     <td className="py-2">{m.month}</td>
-                    <td className="py-2 text-right">
+                    <td className="py-2 text-right font-semibold tabular-nums">
                       {formatMoney(m.invoiced.toString(), currency)}
                     </td>
-                    <td className="py-2 text-right">
+                    <td className="py-2 text-right font-semibold tabular-nums">
                       {formatMoney(m.paid.toString(), currency)}
                     </td>
                   </tr>
                 ))}
               </tbody>
             </table>
+            </div>
           )}
         </CardContent>
       </Card>

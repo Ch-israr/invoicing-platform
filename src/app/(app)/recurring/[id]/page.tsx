@@ -4,14 +4,35 @@ import { auth } from "@/lib/auth";
 import { TenantError } from "@/lib/tenant";
 import { formatMoney } from "@/lib/utils";
 import { getRecurringDetail } from "@/server/services/recurring.service";
+import { isDraftNumber } from "@/lib/numbering";
+import { cn } from "@/lib/utils";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
+import { InvoiceStatusBadge } from "@/components/invoices/status-badge";
 import {
   cancelRecurringAction,
   pauseRecurringAction,
   resumeRecurringAction,
   runRecurringNowAction,
 } from "../actions";
+
+function RecurringStatusPill({ status, ended }: { status: string; ended: boolean }) {
+  return (
+    <span
+      className={cn(
+        "inline-flex items-center rounded-full px-2 py-0.5 text-xs font-medium",
+        status === "ACTIVE"
+          ? "bg-green-600/10 text-green-700 dark:text-green-400"
+          : status === "PAUSED"
+            ? "bg-amber-600/10 text-amber-700 dark:text-amber-400"
+            : "bg-slate-500/10 text-slate-600 dark:text-slate-400",
+      )}
+    >
+      {status === "ACTIVE" ? "Active" : status === "PAUSED" ? "Paused" : "Cancelled"}
+      {ended && status === "ACTIVE" ? " · ended" : ""}
+    </span>
+  );
+}
 
 const FREQUENCY_LABELS: Record<string, string> = {
   WEEKLY: "Weekly",
@@ -55,17 +76,15 @@ export default async function RecurringDetailPage({
   const customer = schedule.customer;
 
   return (
-    <div className="max-w-5xl space-y-6">
+    <div className="-m-4 min-h-[calc(100dvh-4rem)] space-y-6 bg-muted/60 p-4 md:-m-6 md:p-6">
+      <div className="mx-auto max-w-6xl space-y-6">
       <div className="flex flex-wrap items-start justify-between gap-4">
         <div>
-          <h1 className="text-2xl font-bold">
+          <h1 className="text-2xl font-bold tracking-tight">
             {customer.companyName ?? customer.name}
           </h1>
           <p className="mt-1 flex flex-wrap items-center gap-2 text-sm text-muted-foreground">
-            <span className="inline-flex items-center rounded-full bg-muted px-2 py-0.5 text-xs font-medium">
-              {schedule.status.charAt(0) + schedule.status.slice(1).toLowerCase()}
-              {ended && schedule.status === "ACTIVE" ? " · ended" : ""}
-            </span>
+            <RecurringStatusPill status={schedule.status} ended={ended} />
             <span>
               {FREQUENCY_LABELS[schedule.frequency] ?? schedule.frequency}
               {schedule.frequency === "CUSTOM" && schedule.intervalDays
@@ -123,17 +142,17 @@ export default async function RecurringDetailPage({
         </p>
       ) : null}
 
-      <div className="grid grid-cols-2 gap-4 md:grid-cols-4">
+      <div className="grid grid-cols-2 gap-4 md:grid-cols-4 [&>*]:min-w-0">
         <Card>
           <CardContent className="p-4">
             <p className="text-xs text-muted-foreground">Started</p>
-            <p className="mt-1 font-semibold">{formatDate(schedule.startDate)}</p>
+            <p className="mt-1 text-lg font-semibold">{formatDate(schedule.startDate)}</p>
           </CardContent>
         </Card>
         <Card>
           <CardContent className="p-4">
             <p className="text-xs text-muted-foreground">Ends</p>
-            <p className="mt-1 font-semibold">
+            <p className="mt-1 text-lg font-semibold">
               {schedule.endDate ? formatDate(schedule.endDate) : "No end"}
             </p>
           </CardContent>
@@ -141,7 +160,7 @@ export default async function RecurringDetailPage({
         <Card>
           <CardContent className="p-4">
             <p className="text-xs text-muted-foreground">Last run</p>
-            <p className="mt-1 font-semibold">
+            <p className="mt-1 text-lg font-semibold">
               {schedule.lastRunAt ? formatDate(schedule.lastRunAt) : "Never"}
             </p>
           </CardContent>
@@ -149,7 +168,7 @@ export default async function RecurringDetailPage({
         <Card>
           <CardContent className="p-4">
             <p className="text-xs text-muted-foreground">Invoices generated</p>
-            <p className="mt-1 font-semibold">{schedule.generated.length}</p>
+            <p className="mt-1 text-2xl font-bold tracking-tight tabular-nums">{schedule.generated.length}</p>
           </CardContent>
         </Card>
       </div>
@@ -171,15 +190,16 @@ export default async function RecurringDetailPage({
                   key={inv.id}
                   className="flex flex-wrap items-center justify-between gap-2 py-3 first:pt-0 last:pb-0"
                 >
-                  <Link href={`/invoices/${inv.id}`} className="hover:underline">
-                    <p className="font-medium">
-                      {inv.number}
-                      <span className="ml-2 text-sm font-normal text-muted-foreground">
-                        {inv.status} · {formatDate(inv.issueDate)}
+                  <Link href={`/invoices/${inv.id}`} className="min-w-0 hover:underline">
+                    <p className="flex flex-wrap items-center gap-2 font-medium">
+                      {isDraftNumber(inv.number) ? "Draft" : inv.number}
+                      <InvoiceStatusBadge status={inv.status} />
+                      <span className="text-sm font-normal text-muted-foreground">
+                        {formatDate(inv.issueDate)}
                       </span>
                     </p>
                   </Link>
-                  <p className="font-medium">
+                  <p className="font-semibold tabular-nums">
                     {formatMoney(inv.grandTotal.toString(), business.currency)}
                   </p>
                 </li>
@@ -194,6 +214,7 @@ export default async function RecurringDetailPage({
         good — invoices already created are untouched. Each run creates
         exactly one invoice per period, even if it is triggered twice.
       </p>
+      </div>
     </div>
   );
 }

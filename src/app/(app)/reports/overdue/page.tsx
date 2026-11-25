@@ -3,9 +3,18 @@ import { redirect } from "next/navigation";
 import { auth } from "@/lib/auth";
 import { getDefaultBusinessForUser } from "@/lib/tenant";
 import { formatMoney } from "@/lib/utils";
-import { getOverdueReport, toIsoDay } from "@/server/services/report.service";
+import { getOverdueReport } from "@/server/services/report.service";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
+
+function formatDate(date: Date): string {
+  return new Intl.DateTimeFormat("en-GB", {
+    day: "2-digit",
+    month: "short",
+    year: "numeric",
+    timeZone: "UTC",
+  }).format(date);
+}
 
 export default async function OverdueReportPage() {
   const session = await auth();
@@ -15,14 +24,12 @@ export default async function OverdueReportPage() {
   const currency = biz?.currency ?? "AED";
 
   return (
-    <div className="space-y-6">
+    <div className="-m-4 min-h-[calc(100dvh-4rem)] space-y-6 bg-muted/60 p-4 md:-m-6 md:p-6">
       <div className="flex flex-wrap items-start justify-between gap-4">
         <div>
-          <h1 className="text-2xl font-bold">Overdue invoices</h1>
+          <h1 className="text-2xl font-bold tracking-tight">Overdue invoices</h1>
           <p className="text-sm text-muted-foreground">
-            {report.count} invoice{report.count === 1 ? "" : "s"} past due ·{" "}
-            {formatMoney(report.totalBalance.toString(), currency)} outstanding
-            · worst first.
+            Invoices past their due date with balances, worst first.
           </p>
         </div>
         <div className="flex gap-2">
@@ -37,6 +44,25 @@ export default async function OverdueReportPage() {
         </div>
       </div>
 
+      <div className="grid grid-cols-2 gap-4 [&>*]:min-w-0">
+        <Card>
+          <CardContent className="p-4">
+            <p className="text-xs text-muted-foreground">Overdue invoices</p>
+            <p className="mt-1 text-2xl font-bold tracking-tight tabular-nums">{report.count}</p>
+            <p className="text-xs text-muted-foreground">Past their due date</p>
+          </CardContent>
+        </Card>
+        <Card>
+          <CardContent className="p-4">
+            <p className="text-xs text-muted-foreground">Total outstanding</p>
+            <p className="mt-1 text-2xl font-bold tracking-tight tabular-nums">
+              {formatMoney(report.totalBalance.toString(), currency)}
+            </p>
+            <p className="text-xs text-muted-foreground">Across overdue invoices</p>
+          </CardContent>
+        </Card>
+      </div>
+
       <Card>
         <CardHeader>
           <CardTitle>Overdue</CardTitle>
@@ -47,6 +73,7 @@ export default async function OverdueReportPage() {
               Nothing overdue — all open invoices are within their due dates.
             </p>
           ) : (
+            <div className="overflow-x-auto">
             <table className="w-full text-sm">
               <thead>
                 <tr className="border-b text-left text-muted-foreground">
@@ -66,15 +93,16 @@ export default async function OverdueReportPage() {
                       </Link>
                     </td>
                     <td className="py-2">{r.customerName}</td>
-                    <td className="py-2">{toIsoDay(r.dueDate)}</td>
-                    <td className="py-2 text-right">{r.daysOverdue}</td>
-                    <td className="py-2 text-right">
+                    <td className="py-2">{formatDate(r.dueDate)}</td>
+                    <td className="py-2 text-right tabular-nums">{r.daysOverdue}</td>
+                    <td className="py-2 text-right font-semibold tabular-nums">
                       {formatMoney(r.balance.toString(), currency)}
                     </td>
                   </tr>
                 ))}
               </tbody>
             </table>
+            </div>
           )}
         </CardContent>
       </Card>

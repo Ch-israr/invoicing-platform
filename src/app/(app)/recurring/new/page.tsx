@@ -17,9 +17,10 @@ export default async function NewRecurringPage() {
   const locale = data.settings?.locale === "ar" ? "ar" : "en";
 
   return (
-    <div className="max-w-5xl space-y-6">
+    <div className="-m-4 min-h-[calc(100dvh-4rem)] space-y-6 bg-muted/60 p-4 md:-m-6 md:p-6">
+      <div className="mx-auto max-w-5xl space-y-6">
       <div>
-        <h1 className="text-2xl font-bold">New recurring schedule</h1>
+        <h1 className="text-2xl font-bold tracking-tight">New recurring schedule</h1>
         <p className="text-sm text-muted-foreground">
           Define the invoice once — it is generated on each repeat with
           totals recomputed from these lines.
@@ -40,6 +41,7 @@ export default async function NewRecurringPage() {
         settingsTerms={data.business.defaultTerms}
         action={createRecurringAction}
       />
+      </div>
     </div>
   );
 }

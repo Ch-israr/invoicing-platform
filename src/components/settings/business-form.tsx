@@ -281,7 +281,7 @@ export function BusinessForm({
         </CardContent>
       </Card>
 
-      <div className="flex items-center gap-3">
+      <div className="sticky bottom-4 z-10 flex items-center gap-3 rounded-lg border bg-card p-3 shadow-lg">
         <SubmitButton>Save business profile</SubmitButton>
         <p className="text-xs text-muted-foreground">
           Changes are recorded in the activity log. Only owners and admins

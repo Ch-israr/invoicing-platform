@@ -42,23 +42,24 @@ export default async function CreditNotesPage({
   };
 
   return (
-    <div className="space-y-6">
+    <div className="-m-4 min-h-[calc(100dvh-4rem)] space-y-6 bg-muted/60 p-4 md:-m-6 md:p-6">
       <div>
-        <h1 className="text-2xl font-bold">Credit Notes</h1>
+        <h1 className="text-2xl font-bold tracking-tight">Credit Notes</h1>
         <p className="text-sm text-muted-foreground">
           Corrections to issued invoices. A credit note reduces the
           invoice balance without changing the invoice.
         </p>
       </div>
 
-      <form className="flex flex-wrap gap-2" method="get">
+      <form className="flex flex-wrap items-center gap-2" method="get">
         <Input
           name="q"
           defaultValue={q}
           placeholder="Search number, invoice or customer…"
-          className="w-72"
+          className="min-w-48 flex-1 sm:max-w-xs"
+          aria-label="Search credit notes"
         />
-        <Select name="status" defaultValue={status ?? ""}>
+        <Select name="status" defaultValue={status ?? ""} aria-label="Filter by status" className="w-40">
           <option value="">All statuses</option>
           <option value="ISSUED">Issued</option>
           <option value="CANCELLED">Cancelled</option>
@@ -76,9 +77,14 @@ export default async function CreditNotesPage({
       <Card>
         <CardContent className="p-0">
           {creditNotes.length === 0 ? (
-            <p className="p-6 text-sm text-muted-foreground">
-              No credit notes yet. Issue one from an issued invoice.
-            </p>
+            <div className="p-6">
+              <p className="text-sm text-muted-foreground">
+                No credit notes yet. Issue one from an issued invoice.
+              </p>
+              <Button asChild size="sm" variant="outline" className="mt-3">
+                <Link href="/invoices">View invoices</Link>
+              </Button>
+            </div>
           ) : (
             <ul className="divide-y">
               {creditNotes.map((c) => (
