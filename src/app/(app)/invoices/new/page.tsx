@@ -19,9 +19,10 @@ export default async function NewInvoicePage() {
   const locale = data.settings?.locale === "ar" ? "ar" : "en";
 
   return (
-    <div className="max-w-5xl space-y-6">
+    <div className="-m-4 min-h-[calc(100dvh-4rem)] space-y-6 bg-muted/60 p-4 md:-m-6 md:p-6">
+      <div className="mx-auto max-w-5xl space-y-6">
       <div>
-        <h1 className="text-2xl font-bold">New Invoice</h1>
+        <h1 className="text-2xl font-bold tracking-tight">New Invoice</h1>
         <p className="text-sm text-muted-foreground">
           Build a draft, check the live preview, then issue it from the
           invoice page. Totals are recalculated on the server when saving.
@@ -50,6 +51,7 @@ export default async function NewInvoicePage() {
         action={createInvoiceAction}
         submitLabel="Save draft"
       />
+      </div>
     </div>
   );
 }

@@ -115,7 +115,7 @@ export function PaymentList({
     return <p className="text-sm text-muted-foreground">No payments recorded yet.</p>;
   }
   return (
-    <ul className="space-y-3">
+    <ul className="relative space-y-5 before:absolute before:bottom-2 before:left-[5px] before:top-2 before:w-px before:bg-border">
       {payments.map((p) => {
         const refunded = p.refunds.reduce(
           (acc, r) => acc.add(new Decimal(r.amount)),
@@ -124,10 +124,14 @@ export function PaymentList({
         const net = new Decimal(p.amount).sub(refunded);
         const unrefunded = net.toString();
         return (
-          <li key={p.id} className="rounded-lg border p-4">
+          <li key={p.id} className="relative pl-6">
+            <span
+              className="absolute left-0 top-1.5 h-[11px] w-[11px] rounded-full border-2 border-background bg-green-600"
+              aria-hidden
+            />
             <div className="flex flex-wrap items-start justify-between gap-3">
               <div>
-                <p className="font-medium">
+                <p className="font-medium tabular-nums">
                   {formatMoney(p.amount, currency)}
                   <span className="ml-2 text-sm font-normal text-muted-foreground">
                     {METHOD_LABELS[p.method] ?? p.method} · {formatDate(p.date)}

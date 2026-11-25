@@ -61,9 +61,10 @@ export default async function EditInvoicePage({
   }));
 
   return (
-    <div className="max-w-5xl space-y-6">
+    <div className="-m-4 min-h-[calc(100dvh-4rem)] space-y-6 bg-muted/60 p-4 md:-m-6 md:p-6">
+      <div className="mx-auto max-w-5xl space-y-6">
       <div>
-        <h1 className="text-2xl font-bold">Edit draft invoice</h1>
+        <h1 className="text-2xl font-bold tracking-tight">Edit draft invoice</h1>
         <p className="text-sm text-muted-foreground">
           Only drafts can be edited. Once issued, an invoice is frozen.
         </p>
@@ -103,6 +104,7 @@ export default async function EditInvoicePage({
         action={updateInvoiceAction}
         submitLabel="Save draft"
       />
+      </div>
     </div>
   );
 }

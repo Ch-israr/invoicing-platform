@@ -67,33 +67,46 @@ export function OutstandingChart({
     SENT: "Sent",
     PARTIALLY_PAID: "Partially paid",
   };
+  // The legend reads nameKey, so give each slice a human label — the
+  // raw status string (PARTIALLY_PAID) used to show up in the legend.
+  const dataWithLabels = data.map((d) => ({
+    ...d,
+    label: label[d.status] ?? d.status,
+  }));
+  const total = data.reduce((sum, d) => sum + d.balance, 0);
   return (
-    <div className="h-64 w-full">
+    <div className="relative h-64 w-full">
       <ResponsiveContainer width="100%" height="100%">
         <PieChart>
           <Pie
-            data={data}
+            data={dataWithLabels}
             dataKey="balance"
-            nameKey="status"
+            nameKey="label"
             cx="50%"
             cy="50%"
             innerRadius={55}
             outerRadius={85}
             paddingAngle={2}
           >
-            {data.map((d) => (
+            {dataWithLabels.map((d) => (
               <Cell key={d.status} fill={STATUS_COLORS[d.status] ?? "#64748b"} />
             ))}
           </Pie>
           <Tooltip
             formatter={(value, _name, props) => [
               typeof value === "number" ? value.toFixed(2) : value,
-              `${label[String(props?.payload?.status ?? "")] ?? props?.payload?.status} (${props?.payload?.count ?? 0} invoices)`,
+              `${props?.payload?.label ?? props?.payload?.status} (${props?.payload?.count ?? 0} invoices)`,
             ]}
           />
           <Legend />
         </PieChart>
       </ResponsiveContainer>
+      <div className="pointer-events-none absolute inset-0 flex flex-col items-center justify-center pb-8">
+        <span className="text-xl font-bold tabular-nums">
+          {total.toFixed(2)}
+        </span>
+        <span className="text-xs text-muted-foreground">outstanding</span>
+      </div>
     </div>
   );
 }
@@ -117,7 +130,10 @@ export function TopCustomersChart({
             type="category"
             dataKey="name"
             tick={{ fontSize: 12 }}
-            width={110}
+            width={130}
+            tickFormatter={(value: string) =>
+              value.length > 18 ? `${value.slice(0, 17)}…` : value
+            }
           />
           <Tooltip
             formatter={(value) => [
@@ -125,7 +141,13 @@ export function TopCustomersChart({
               "Billed",
             ]}
           />
-          <Bar dataKey="total" name="Billed" fill="#2563eb" radius={[0, 4, 4, 0]} />
+          <Bar
+            dataKey="total"
+            name="Billed"
+            fill="#2563eb"
+            radius={[0, 4, 4, 0]}
+            barSize={32}
+          />
         </BarChart>
       </ResponsiveContainer>
     </div>

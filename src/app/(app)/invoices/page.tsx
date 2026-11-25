@@ -14,6 +14,15 @@ import { InvoiceStatusBadge } from "@/components/invoices/status-badge";
 
 const STATUSES = ["DRAFT", "ISSUED", "SENT", "PARTIALLY_PAID", "PAID", "CANCELLED"] as const;
 
+const STATUS_LABELS: Record<(typeof STATUSES)[number], string> = {
+  DRAFT: "Draft",
+  ISSUED: "Issued",
+  SENT: "Sent",
+  PARTIALLY_PAID: "Partially paid",
+  PAID: "Paid",
+  CANCELLED: "Cancelled",
+};
+
 export default async function InvoicesPage({
   searchParams,
 }: {
@@ -47,10 +56,10 @@ export default async function InvoicesPage({
   };
 
   return (
-    <div className="space-y-6">
+    <div className="-m-4 min-h-[calc(100dvh-4rem)] space-y-6 bg-muted/60 p-4 md:-m-6 md:p-6">
       <div className="flex items-center justify-between gap-4">
         <div>
-          <h1 className="text-2xl font-bold">Invoices</h1>
+          <h1 className="text-2xl font-bold tracking-tight">Invoices</h1>
           <p className="text-sm text-muted-foreground">
             Drafts, issued invoices and their balances.
           </p>
@@ -66,18 +75,18 @@ export default async function InvoicesPage({
         </p>
       ) : null}
 
-      <form className="flex flex-wrap gap-2" method="get">
+      <form className="flex flex-wrap items-center gap-2" method="get">
         <Input
           name="q"
           defaultValue={q}
           placeholder="Search number or customer…"
-          className="w-64"
+          className="min-w-48 flex-1 sm:max-w-xs"
         />
-        <Select name="status" defaultValue={status ?? ""}>
+        <Select name="status" defaultValue={status ?? ""} className="w-44">
           <option value="">All statuses</option>
           {STATUSES.map((s) => (
             <option key={s} value={s}>
-              {s}
+              {STATUS_LABELS[s]}
             </option>
           ))}
         </Select>
@@ -94,52 +103,78 @@ export default async function InvoicesPage({
       <Card>
         <CardContent className="p-0">
           {invoices.length === 0 ? (
-            <p className="p-6 text-sm text-muted-foreground">
-              No invoices yet. Create your first invoice to start billing.
-            </p>
+            <div className="p-6">
+              <p className="text-sm text-muted-foreground">
+                No invoices yet — create your first invoice to start billing.
+              </p>
+              <Button asChild size="sm" className="mt-3">
+                <Link href="/invoices/new">Create your first invoice</Link>
+              </Button>
+            </div>
           ) : (
-            <table className="w-full text-sm">
-              <thead>
-                <tr className="border-b text-left text-muted-foreground">
-                  <th className="px-4 py-3 font-medium">Number</th>
-                  <th className="px-4 py-3 font-medium">Customer</th>
-                  <th className="px-4 py-3 font-medium">Issue date</th>
-                  <th className="px-4 py-3 font-medium">Due date</th>
-                  <th className="px-4 py-3 font-medium">Status</th>
-                  <th className="px-4 py-3 text-right font-medium">Total</th>
-                  <th className="px-4 py-3 text-right font-medium">Balance</th>
-                </tr>
-              </thead>
-              <tbody>
-                {invoices.map((inv) => (
-                  <tr key={inv.id} className="border-b last:border-0 hover:bg-muted/50">
-                    <td className="px-4 py-3">
-                      <Link href={`/invoices/${inv.id}`} className="font-medium underline-offset-2 hover:underline">
-                        {isDraftNumber(inv.number) ? "Draft" : inv.number}
-                      </Link>
-                    </td>
-                    <td className="px-4 py-3">
-                      {inv.customer.companyName ?? inv.customer.name}
-                    </td>
-                    <td className="px-4 py-3">
-                      {inv.issueDate.toISOString().slice(0, 10)}
-                    </td>
-                    <td className="px-4 py-3">
-                      {inv.dueDate.toISOString().slice(0, 10)}
-                    </td>
-                    <td className="px-4 py-3">
-                      <InvoiceStatusBadge status={inv.status} isOverdue={inv.isOverdue} />
-                    </td>
-                    <td className="px-4 py-3 text-right">
-                      {formatMoney(inv.grandTotal.toString(), inv.currency)}
-                    </td>
-                    <td className="px-4 py-3 text-right">
-                      {formatMoney(inv.balance.toString(), inv.currency)}
-                    </td>
+            <div className="overflow-x-auto">
+              <table className="w-full text-sm">
+                <thead>
+                  <tr className="border-b text-left text-muted-foreground">
+                    <th className="px-4 py-3 font-medium">Number</th>
+                    <th className="px-4 py-3 font-medium">Customer</th>
+                    <th className="px-4 py-3 font-medium whitespace-nowrap">Issue date</th>
+                    <th className="px-4 py-3 font-medium whitespace-nowrap">Due date</th>
+                    <th className="px-4 py-3 font-medium">Status</th>
+                    <th className="px-4 py-3 text-right font-medium">Total</th>
+                    <th className="px-4 py-3 text-right font-medium">Balance</th>
                   </tr>
-                ))}
-              </tbody>
-            </table>
+                </thead>
+                <tbody>
+                  {invoices.map((inv) => (
+                    <tr
+                      key={inv.id}
+                      className={
+                        inv.isOverdue
+                          ? "border-b bg-red-50/70 last:border-0 hover:bg-red-100/70 dark:bg-red-950/20 dark:hover:bg-red-950/30"
+                          : "border-b last:border-0 hover:bg-muted/50"
+                      }
+                    >
+                      <td className="px-4 py-3 whitespace-nowrap">
+                        <Link href={`/invoices/${inv.id}`} className="font-medium underline-offset-2 hover:underline">
+                          {isDraftNumber(inv.number) ? "Draft" : inv.number}
+                        </Link>
+                      </td>
+                      <td className="px-4 py-3">
+                        {inv.customer.companyName ?? inv.customer.name}
+                      </td>
+                      <td className="px-4 py-3 whitespace-nowrap">
+                        {inv.issueDate.toISOString().slice(0, 10)}
+                      </td>
+                      <td
+                        className={
+                          inv.isOverdue
+                            ? "px-4 py-3 font-medium whitespace-nowrap text-red-700 dark:text-red-400"
+                            : "px-4 py-3 whitespace-nowrap"
+                        }
+                      >
+                        {inv.dueDate.toISOString().slice(0, 10)}
+                      </td>
+                      <td className="px-4 py-3 whitespace-nowrap">
+                        <InvoiceStatusBadge status={inv.status} isOverdue={inv.isOverdue} />
+                      </td>
+                      <td className="px-4 py-3 text-right tabular-nums">
+                        {formatMoney(inv.grandTotal.toString(), inv.currency)}
+                      </td>
+                      <td
+                        className={
+                          Number(inv.balance) > 0
+                            ? "px-4 py-3 text-right font-semibold tabular-nums"
+                            : "px-4 py-3 text-right tabular-nums"
+                        }
+                      >
+                        {formatMoney(inv.balance.toString(), inv.currency)}
+                      </td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
           )}
         </CardContent>
       </Card>

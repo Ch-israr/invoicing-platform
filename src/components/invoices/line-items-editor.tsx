@@ -119,26 +119,26 @@ export function LineTotalsBox({
 }) {
   return (
     <div className="flex justify-end">
-      <dl className="w-full max-w-xs space-y-1.5 rounded-lg border bg-card p-4 text-sm">
+      <dl className="w-full max-w-xs space-y-1.5 rounded-lg border bg-card p-4 text-sm shadow-sm">
         <div className="flex justify-between">
           <dt className="text-muted-foreground">Subtotal</dt>
-          <dd>{formatMoney(totals.subtotal.toString(), currency)}</dd>
+          <dd className="tabular-nums">{formatMoney(totals.subtotal.toString(), currency)}</dd>
         </div>
         <div className="flex justify-between">
           <dt className="text-muted-foreground">Discount</dt>
-          <dd>−{formatMoney(totals.discountTotal.toString(), currency)}</dd>
+          <dd className="tabular-nums">−{formatMoney(totals.discountTotal.toString(), currency)}</dd>
         </div>
         <div className="flex justify-between">
           <dt className="text-muted-foreground">Taxable amount</dt>
-          <dd>{formatMoney(totals.taxableAmount.toString(), currency)}</dd>
+          <dd className="tabular-nums">{formatMoney(totals.taxableAmount.toString(), currency)}</dd>
         </div>
         <div className="flex justify-between">
           <dt className="text-muted-foreground">VAT</dt>
-          <dd>{formatMoney(totals.vatAmount.toString(), currency)}</dd>
+          <dd className="tabular-nums">{formatMoney(totals.vatAmount.toString(), currency)}</dd>
         </div>
-        <div className="flex justify-between border-t pt-2 text-base font-bold">
+        <div className="mt-1 flex justify-between rounded-md bg-muted px-2 py-1.5 text-base font-bold">
           <dt>Grand total</dt>
-          <dd>{formatMoney(totals.grandTotal.toString(), currency)}</dd>
+          <dd className="tabular-nums">{formatMoney(totals.grandTotal.toString(), currency)}</dd>
         </div>
         <p className="text-xs text-muted-foreground">
           Preview totals — the server recalculates everything when saving.
@@ -206,12 +206,12 @@ export function LineItemsEditor({
       {lines.map((line, idx) => {
         const lineTotal = lineTotalsByKey.get(line.key);
         return (
-          <div key={line.key} className="space-y-3 rounded-lg border bg-card p-4">
+          <div key={line.key} className="space-y-3 rounded-lg border bg-card p-4 shadow-sm">
             <div className="flex items-center justify-between gap-2">
-              <span className="text-sm font-medium text-muted-foreground">Line {idx + 1}</span>
+              <span className="text-sm font-semibold">Line {idx + 1}</span>
               <div className="flex items-center gap-3">
                 {lineTotal !== undefined ? (
-                  <span className="text-sm font-semibold">
+                  <span className="text-sm font-semibold tabular-nums">
                     {formatMoney(lineTotal, currency)}
                   </span>
                 ) : null}
@@ -252,7 +252,7 @@ export function LineItemsEditor({
                 />
               </Field>
             </div>
-            <div className="grid grid-cols-2 gap-3 sm:grid-cols-3 lg:grid-cols-6">
+            <div className="grid grid-cols-2 gap-3 sm:grid-cols-3 xl:grid-cols-6">
               <Field label="SKU" htmlFor={`sku-${line.key}`}>
                 <Input
                   id={`sku-${line.key}`}
@@ -323,7 +323,7 @@ export function LineItemsEditor({
                 >
                   {taxRates.map((t) => (
                     <option key={t.id} value={t.id}>
-                      {t.code} — {t.name} ({t.rate}%)
+                      {t.code} — {t.rate}%
                     </option>
                   ))}
                   <option value="">Out of scope (0%)</option>

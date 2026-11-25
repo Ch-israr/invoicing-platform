@@ -32,7 +32,7 @@ export function PaymentForm({
     <form action={formAction} className="space-y-4">
       <input type="hidden" name="id" value={invoiceId} />
       <FormError error={state?.error} />
-      <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
+      <div className="space-y-4">
         <Field label="Date" htmlFor="payment-date">
           <Input
             id="payment-date"
@@ -82,7 +82,7 @@ export function PaymentForm({
       <Field label="Notes" htmlFor="payment-notes" hint="Optional">
         <Textarea id="payment-notes" name="notes" rows={2} />
       </Field>
-      <div className="flex gap-2">
+      <div className="flex flex-wrap gap-2">
         <SubmitButton>Record payment</SubmitButton>
         <Button
           type="button"

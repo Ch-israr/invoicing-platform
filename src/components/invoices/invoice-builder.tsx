@@ -3,6 +3,7 @@
 import { useActionState, useMemo, useState } from "react";
 import Link from "next/link";
 import { Button } from "@/components/ui/button";
+import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
 import { Select } from "@/components/ui/select";
@@ -256,7 +257,11 @@ export function InvoiceBuilder({
         <FormError error={state?.error} />
 
         <div className="grid gap-6 lg:grid-cols-2">
-          <div className="space-y-4">
+          <Card>
+            <CardHeader>
+              <CardTitle>Invoice details</CardTitle>
+            </CardHeader>
+            <CardContent className="space-y-4">
             <Field label="Customer" htmlFor="customerId">
               <Select
                 id="customerId"
@@ -316,8 +321,13 @@ export function InvoiceBuilder({
                 </Field>
               )}
             </div>
-          </div>
-          <div className="space-y-4">
+            </CardContent>
+          </Card>
+          <Card>
+            <CardHeader>
+              <CardTitle>Template &amp; notes</CardTitle>
+            </CardHeader>
+            <CardContent className="space-y-4">
             <div className="grid grid-cols-2 gap-4">
               <Field label="Template" htmlFor="template">
                 <Select
@@ -367,7 +377,8 @@ export function InvoiceBuilder({
                 onChange={(e) => setTerms(e.target.value)}
               />
             </Field>
-          </div>
+            </CardContent>
+          </Card>
         </div>
 
         <LineItemsEditor
@@ -381,7 +392,7 @@ export function InvoiceBuilder({
 
         <LineTotalsBox totals={preview.totals} currency={business.currency} />
 
-        <div className="flex gap-2">
+        <div className="sticky bottom-4 z-10 flex gap-2 rounded-lg border bg-card p-3 shadow-lg">
           <SubmitButton>{submitLabel}</SubmitButton>
           <Button variant="outline" asChild>
             <Link href={cancelHref}>Cancel</Link>
@@ -395,7 +406,7 @@ export function InvoiceBuilder({
         <p className="text-sm text-muted-foreground">
           {isQuotation
             ? "This is the same layout the quotation will be shown in."
-            : "This is the same layout the PDF will use in Phase 4."}
+            : "This is the same layout the PDF will use."}
         </p>
         <InvoicePreview data={previewData} />
       </div>

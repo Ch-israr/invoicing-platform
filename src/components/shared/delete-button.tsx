@@ -2,18 +2,26 @@
 
 import { useState } from "react";
 import { Button } from "@/components/ui/button";
+import { cn } from "@/lib/utils";
 
 /**
  * Two-step delete: first click arms the button, second click submits
  * the enclosing <form>. No JavaScript confirm() dialog.
  */
-export function DeleteButton({ label = "Delete" }: { label?: string }) {
+export function DeleteButton({
+  label = "Delete",
+  className,
+}: {
+  label?: string;
+  className?: string;
+}) {
   const [armed, setArmed] = useState(false);
   return (
     <Button
       type={armed ? "submit" : "button"}
       variant="destructive"
       size="sm"
+      className={cn(className)}
       onClick={(e) => {
         if (!armed) {
           e.preventDefault();
