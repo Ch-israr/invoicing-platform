@@ -121,9 +121,9 @@ async function InvoiceView({
           </p>
         </div>
         <Button asChild>
-          <Link href={`/api/portal/${token}/pdf?invoiceId=${invoice.id}`}>
+          <a href={`/api/portal/${token}/pdf?invoiceId=${invoice.id}`}>
             Download PDF
-          </Link>
+          </a>
         </Button>
       </div>
       <div className="grid grid-cols-2 gap-4 md:grid-cols-3 [&>*]:min-w-0">

@@ -371,7 +371,7 @@ export default async function InvoiceDetailPage({
             </CardHeader>
             <CardContent className="space-y-2">
               <Button asChild variant="outline" className="w-full">
-                <Link href={`/api/invoices/${invoice.id}/pdf`}>Download PDF</Link>
+                <a href={`/api/invoices/${invoice.id}/pdf`}>Download PDF</a>
               </Button>
               <Button asChild variant="outline" className="w-full">
                 <Link href={`/invoices/${invoice.id}/print`} target="_blank">

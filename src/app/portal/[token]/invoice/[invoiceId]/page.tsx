@@ -70,9 +70,9 @@ export default async function PortalInvoiceSubPage({
           </p>
         </div>
         <Button asChild>
-          <Link href={`/api/portal/${token}/pdf?invoiceId=${invoice.id}`}>
+          <a href={`/api/portal/${token}/pdf?invoiceId=${invoice.id}`}>
             Download PDF
-          </Link>
+          </a>
         </Button>
       </div>
       <div className="grid grid-cols-2 gap-4 md:grid-cols-3">
