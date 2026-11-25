@@ -11,9 +11,10 @@ export default async function NewProductPage() {
   if (!data) redirect("/login");
 
   return (
-    <div className="max-w-3xl space-y-6">
+    <div className="-m-4 min-h-[calc(100dvh-4rem)] space-y-6 bg-muted/60 p-4 md:-m-6 md:p-6">
+      <div className="mx-auto max-w-3xl space-y-6">
       <div>
-        <h1 className="text-2xl font-bold">New Product or Service</h1>
+        <h1 className="text-2xl font-bold tracking-tight">New Product or Service</h1>
         <p className="text-sm text-muted-foreground">
           Add an item to your catalogue. It can be picked on invoices and
           quotations from Phase 3 onwards.
@@ -31,6 +32,7 @@ export default async function NewProductPage() {
         action={createProductAction}
         submitLabel="Create item"
       />
+    </div>
     </div>
   );
 }

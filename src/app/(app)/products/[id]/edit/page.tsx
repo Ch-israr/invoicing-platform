@@ -27,10 +27,11 @@ export default async function EditProductPage({
   if (!formData) redirect("/login");
 
   return (
-    <div className="max-w-3xl space-y-6">
+    <div className="-m-4 min-h-[calc(100dvh-4rem)] space-y-6 bg-muted/60 p-4 md:-m-6 md:p-6">
+      <div className="mx-auto max-w-3xl space-y-6">
       <div className="flex items-start justify-between gap-4">
         <div>
-          <h1 className="text-2xl font-bold">Edit Item</h1>
+          <h1 className="text-2xl font-bold tracking-tight">Edit Item</h1>
           <p className="text-sm text-muted-foreground">{product.name}</p>
         </div>
         <form action={deleteProductAction}>
@@ -62,6 +63,7 @@ export default async function EditProductPage({
         action={updateProductAction}
         submitLabel="Save changes"
       />
+    </div>
     </div>
   );
 }

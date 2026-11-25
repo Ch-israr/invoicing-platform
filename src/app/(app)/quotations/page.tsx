@@ -14,6 +14,20 @@ import { InvoiceStatusBadge } from "@/components/invoices/status-badge";
 
 const STATUSES = ["DRAFT", "SENT", "ACCEPTED", "REJECTED", "EXPIRED"] as const;
 
+const STATUS_LABELS: Record<(typeof STATUSES)[number], string> = {
+  DRAFT: "Draft",
+  SENT: "Sent",
+  ACCEPTED: "Accepted",
+  REJECTED: "Rejected",
+  EXPIRED: "Expired",
+};
+
+const dateFmt = new Intl.DateTimeFormat("en-GB", {
+  day: "numeric",
+  month: "short",
+  year: "numeric",
+});
+
 export default async function QuotationsPage({
   searchParams,
 }: {
@@ -47,10 +61,10 @@ export default async function QuotationsPage({
   };
 
   return (
-    <div className="space-y-6">
-      <div className="flex items-center justify-between gap-4">
+    <div className="-m-4 min-h-[calc(100dvh-4rem)] space-y-6 bg-muted/60 p-4 md:-m-6 md:p-6">
+      <div className="flex flex-wrap items-start justify-between gap-4">
         <div>
-          <h1 className="text-2xl font-bold">Quotations</h1>
+          <h1 className="text-2xl font-bold tracking-tight">Quotations</h1>
           <p className="text-sm text-muted-foreground">
             Drafts, sent quotations and their conversions.
           </p>
@@ -66,18 +80,19 @@ export default async function QuotationsPage({
         </p>
       ) : null}
 
-      <form className="flex flex-wrap gap-2" method="get">
+      <form className="flex flex-wrap items-center gap-2" method="get">
         <Input
           name="q"
           defaultValue={q}
           placeholder="Search number or customer…"
-          className="w-64"
+          className="min-w-48 flex-1 sm:max-w-xs"
+          aria-label="Search quotations"
         />
-        <Select name="status" defaultValue={status ?? ""}>
+        <Select name="status" defaultValue={status ?? ""} aria-label="Filter by status" className="w-40">
           <option value="">All statuses</option>
           {STATUSES.map((s) => (
             <option key={s} value={s}>
-              {s}
+              {STATUS_LABELS[s]}
             </option>
           ))}
         </Select>
@@ -94,9 +109,18 @@ export default async function QuotationsPage({
       <Card>
         <CardContent className="p-0">
           {quotations.length === 0 ? (
-            <p className="p-6 text-sm text-muted-foreground">
-              No quotations yet. Create your first quotation to start quoting.
-            </p>
+            <div className="p-6">
+              <p className="text-sm text-muted-foreground">
+                {total === 0 && !q && !status
+                  ? "No quotations yet. Create your first quotation to start quoting."
+                  : "No quotations match these filters — try a different search or clear the filters."}
+              </p>
+              {total === 0 && !q && !status ? (
+                <Button asChild size="sm" className="mt-3">
+                  <Link href="/quotations/new">Create your first quotation</Link>
+                </Button>
+              ) : null}
+            </div>
           ) : (
             <ul className="divide-y">
               {quotations.map((qt) => (
@@ -105,20 +129,21 @@ export default async function QuotationsPage({
                     href={`/quotations/${qt.id}`}
                     className="flex flex-wrap items-center justify-between gap-2 px-6 py-4 hover:bg-accent/50"
                   >
-                    <div>
+                    <div className="min-w-0">
                       <p className="font-medium">
                         {isDraftNumber(qt.number) ? "Draft quotation" : qt.number}
                       </p>
                       <p className="text-sm text-muted-foreground">
                         {qt.customer.companyName ?? qt.customer.name}
+                        {` · Issued ${dateFmt.format(qt.issueDate)}`}
                         {qt.convertedInvoice
-                          ? ` · Converted to ${qt.convertedInvoice.number}`
+                          ? ` · Converted to ${isDraftNumber(qt.convertedInvoice.number) ? "Draft" : qt.convertedInvoice.number}`
                           : ""}
                       </p>
                     </div>
-                    <div className="flex items-center gap-3">
+                    <div className="flex shrink-0 items-center gap-3">
                       <InvoiceStatusBadge status={qt.status} />
-                      <p className="font-semibold">
+                      <p className="font-semibold tabular-nums">
                         {formatMoney(qt.grandTotal.toString(), qt.currency)}
                       </p>
                     </div>

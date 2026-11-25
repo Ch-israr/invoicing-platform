@@ -31,9 +31,10 @@ export default async function CategoriesPage({
   });
 
   return (
-    <div className="max-w-3xl space-y-6">
+    <div className="-m-4 min-h-[calc(100dvh-4rem)] space-y-6 bg-muted/60 p-4 md:-m-6 md:p-6">
+      <div className="mx-auto max-w-3xl space-y-6">
       <div>
-        <h1 className="text-2xl font-bold">Product Categories</h1>
+        <h1 className="text-2xl font-bold tracking-tight">Product Categories</h1>
         <p className="text-sm text-muted-foreground">
           Organise your catalogue. Deleting a category leaves its items
           uncategorised — items are never deleted with a category.
@@ -64,6 +65,7 @@ export default async function CategoriesPage({
       <Button variant="outline" asChild>
         <Link href="/products">Back to products</Link>
       </Button>
+    </div>
     </div>
   );
 }

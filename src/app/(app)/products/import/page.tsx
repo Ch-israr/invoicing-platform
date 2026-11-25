@@ -13,9 +13,10 @@ export default async function ImportProductsPage() {
   if (!session?.user?.id) redirect("/login");
 
   return (
-    <div className="max-w-3xl space-y-6">
+    <div className="-m-4 min-h-[calc(100dvh-4rem)] space-y-6 bg-muted/60 p-4 md:-m-6 md:p-6">
+      <div className="mx-auto max-w-3xl space-y-6">
       <div>
-        <h1 className="text-2xl font-bold">Import Products from CSV</h1>
+        <h1 className="text-2xl font-bold tracking-tight">Import Products from CSV</h1>
         <p className="text-sm text-muted-foreground">
           Bulk-add catalogue items. Rows with errors are reported — nothing
           is silently skipped.
@@ -35,6 +36,7 @@ export default async function ImportProductsPage() {
           <pre className="overflow-x-auto rounded-md bg-muted p-3 text-xs">{TEMPLATE}</pre>
         </CardContent>
       </Card>
+    </div>
     </div>
   );
 }
