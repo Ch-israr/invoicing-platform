@@ -51,23 +51,23 @@ export default async function PaymentsPage({
   };
 
   return (
-    <div className="space-y-6">
+    <div className="-m-4 min-h-[calc(100dvh-4rem)] space-y-6 bg-muted/60 p-4 md:-m-6 md:p-6">
       <div>
-        <h1 className="text-2xl font-bold">Payments</h1>
+        <h1 className="text-2xl font-bold tracking-tight">Payments</h1>
         <p className="text-sm text-muted-foreground">
           Money received against invoices. Payments are recorded from the
           invoice page.
         </p>
       </div>
 
-      <form className="flex flex-wrap gap-2" method="get">
+      <form className="flex flex-wrap items-center gap-2" method="get">
         <Input
           name="q"
           defaultValue={q}
           placeholder="Search invoice, customer or reference…"
-          className="w-72"
+          className="min-w-48 flex-1 sm:max-w-xs"
         />
-        <Select name="method" defaultValue={method ?? ""}>
+        <Select name="method" defaultValue={method ?? ""} className="w-44">
           <option value="">All methods</option>
           {METHODS.map((m) => (
             <option key={m} value={m}>
@@ -88,46 +88,67 @@ export default async function PaymentsPage({
       <Card>
         <CardContent className="p-0">
           {payments.length === 0 ? (
-            <p className="p-6 text-sm text-muted-foreground">
-              No payments yet. Record one from an issued invoice.
-            </p>
+            <div className="p-6">
+              <p className="text-sm text-muted-foreground">
+                No payments yet. Record one from an issued invoice.
+              </p>
+              <Button asChild size="sm" variant="outline" className="mt-3">
+                <Link href="/invoices">View invoices</Link>
+              </Button>
+            </div>
           ) : (
             <ul className="divide-y">
-              {payments.map((p) => (
-                <li
-                  key={p.id}
-                  className="flex flex-wrap items-center justify-between gap-2 px-6 py-4"
-                >
-                  <Link
-                    href={`/invoices/${p.invoice.id}`}
-                    className="min-w-0 hover:underline"
+              {payments.map((p) => {
+                const refunded = p.refunded.toString() !== "0";
+                return (
+                  <li
+                    key={p.id}
+                    className="flex flex-wrap items-center justify-between gap-3 px-6 py-4 hover:bg-muted/50"
                   >
-                    <p className="font-medium">
-                      {formatMoney(p.amount.toString(), p.currency)}
-                      <span className="ml-2 text-sm font-normal text-muted-foreground">
-                        {METHOD_LABELS[p.method] ?? p.method} ·{" "}
-                        {new Intl.DateTimeFormat("en-GB", {
-                          day: "2-digit",
-                          month: "short",
-                          year: "numeric",
-                          timeZone: "UTC",
-                        }).format(p.date)}
-                      </span>
-                    </p>
-                    <p className="text-sm text-muted-foreground">
-                      Invoice {p.invoice.number} ·{" "}
-                      {p.invoice.customer.companyName ?? p.invoice.customer.name}
-                      {p.reference ? ` · Ref: ${p.reference}` : ""}
-                      {p.refunded.toString() !== "0"
-                        ? ` · Refunded ${formatMoney(p.refunded.toString(), p.currency)}`
-                        : ""}
-                    </p>
-                  </Link>
-                  <Button asChild variant="outline" size="sm">
-                    <Link href={`/payments/${p.id}/receipt`}>Receipt</Link>
-                  </Button>
-                </li>
-              ))}
+                    <Link
+                      href={`/invoices/${p.invoice.id}`}
+                      className="min-w-0 flex-1 hover:underline"
+                    >
+                      <p className="truncate text-sm">
+                        <span className="font-medium">
+                          {METHOD_LABELS[p.method] ?? p.method}
+                        </span>
+                        <span className="text-muted-foreground">
+                          {" "}·{" "}
+                          {new Intl.DateTimeFormat("en-GB", {
+                            day: "2-digit",
+                            month: "short",
+                            year: "numeric",
+                            timeZone: "UTC",
+                          }).format(p.date)}
+                        </span>
+                      </p>
+                      <p className="truncate text-sm text-muted-foreground">
+                        Invoice {p.invoice.number} ·{" "}
+                        {p.invoice.customer.companyName ?? p.invoice.customer.name}
+                        {p.reference ? ` · Ref: ${p.reference}` : ""}
+                      </p>
+                    </Link>
+                    <div className="flex shrink-0 items-center gap-3">
+                      <div className="text-right">
+                        <p className="font-bold tabular-nums">
+                          {formatMoney(p.amount.toString(), p.currency)}
+                        </p>
+                        {refunded ? (
+                          <p>
+                            <span className="inline-flex items-center rounded-full bg-amber-600/10 px-2 py-0.5 text-xs font-medium text-amber-700 dark:text-amber-400">
+                              Refunded {formatMoney(p.refunded.toString(), p.currency)}
+                            </span>
+                          </p>
+                        ) : null}
+                      </div>
+                      <Button asChild variant="outline" size="sm">
+                        <Link href={`/payments/${p.id}/receipt`}>Receipt</Link>
+                      </Button>
+                    </div>
+                  </li>
+                );
+              })}
             </ul>
           )}
         </CardContent>

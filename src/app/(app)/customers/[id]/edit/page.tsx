@@ -25,7 +25,7 @@ export default async function EditCustomerPage({
   return (
     <div className="max-w-3xl space-y-6">
       <div>
-        <h1 className="text-2xl font-bold">Edit Customer</h1>
+        <h1 className="text-2xl font-bold tracking-tight">Edit Customer</h1>
         <p className="text-sm text-muted-foreground">{customer.name}</p>
       </div>
       <CustomerForm
