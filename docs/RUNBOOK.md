@@ -28,7 +28,10 @@ review it before the first deploy (especially `NEXTAUTH_URL`).
    `UPLOADS_DIR=/var/data/uploads`. Without it, logos, signatures and
    receipts are lost on every redeploy/restart — the app stores files
    on local disk by default.
-5. Run the migrations once, from the Render Shell:
+5. Migrations run automatically on container start (the Dockerfile's
+   CMD runs `npx prisma migrate deploy` before `npm run start`), so
+   no manual step is needed after a deploy. If the automatic step
+   ever needs re-running by hand, use the Render Shell:
    `npx prisma migrate deploy`. (Do not use `prisma migrate dev` in
    production — it is interactive and can prompt.)
 6. Create the first owner account — either register in the browser, or
